@@ -63,6 +63,6 @@ starting the backend.
 
 A workflow builds Docker images for the backend and the client and
 pushes them to Docker Hub.  Provide `DOCKERHUB_USERNAME`,
-`DOCKERHUB_TOKEN` and `IMAGE_NAME` (e.g. `snoocer/nmb-it`) as
+`DOCKERHUB_TOKEN` and `IMAGE_NAME` (e.g. `<username>/<repo>`) as
 repository secrets to control where the images are published.
 
