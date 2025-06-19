@@ -40,7 +40,9 @@ command‑line arguments.
 
 ## Docker Compose
 
-Separate compose files are provided for the backend and the client.
+Separate compose files are provided for the backend and the client. Each
+component comes with its own `Dockerfile` inside the respective
+`backend` and `client` directories.
 
 Start the backend service:
 
@@ -60,6 +62,7 @@ starting the backend.
 ## GitHub Actions
 
 A workflow builds Docker images for the backend and the client and
-pushes them to Docker Hub.  Provide `DOCKERHUB_USERNAME` and
-`DOCKERHUB_TOKEN` as repository secrets for automated builds.
+pushes them to Docker Hub.  Provide `DOCKERHUB_USERNAME`,
+`DOCKERHUB_TOKEN` and `IMAGE_NAME` (e.g. `<username>/<repo>`) as
+repository secrets to control where the images are published.
 
