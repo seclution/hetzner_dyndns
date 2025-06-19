@@ -21,7 +21,8 @@ handler = RotatingFileHandler(LOG_FILE, maxBytes=LOG_MAX_BYTES,
                               backupCount=LOG_BACKUP_COUNT)
 logging.basicConfig(level=log_level,
                     format="%(asctime)s %(levelname)s %(message)s",
-                    handlers=[handler, logging.StreamHandler()])
+                    handlers=[handler, logging.StreamHandler()],
+                    force=True)
 
 app.logger.setLevel(log_level)
 
