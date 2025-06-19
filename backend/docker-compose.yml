@@ -2,6 +2,7 @@ version: '3'
 services:
   backend:
     image: nmbit/hetzner-dyndns-backend
+    container_name: dyndns
     # build:
     #   context: .
     #   dockerfile: Dockerfile
