@@ -1,9 +1,4 @@
-import os, sys
-
-sys.path.insert(
-    0, os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-)
-from backend import app as backend_app
+from hetzner_dyndns.backend import app as backend_app
 
 
 def test_send_ntfy_with_auth(monkeypatch):
