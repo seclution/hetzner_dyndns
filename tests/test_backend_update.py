@@ -16,14 +16,14 @@ def test_update_creates_record(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
 
-    def mock_get(url, headers=None):
+    def mock_get(url, headers=None, **kwargs):
         if url.endswith("/zones"):
             return DummyResp({"zones": [{"id": "z1", "name": "example.com"}]})
         elif url.startswith("https://dns.hetzner.com/api/v1/records"):
             return DummyResp({"records": []})
         raise AssertionError("unexpected GET " + url)
 
-    def mock_post(url, headers=None, json=None):
+    def mock_post(url, headers=None, json=None, **kwargs):
         assert url.endswith("/records")
         return DummyResp({"record": {"id": "r1"}})
 

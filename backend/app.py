@@ -9,6 +9,8 @@ app = Flask(__name__)
 HETZNER_TOKEN = os.environ.get("HETZNER_TOKEN")
 NTFY_URL = os.environ.get("NTFY_URL")
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC")
+NTFY_USERNAME = os.environ.get("NTFY_USERNAME")
+NTFY_PASSWORD = os.environ.get("NTFY_PASSWORD")
 
 # Logging configuration
 DEBUG_LOGGING = os.environ.get("DEBUG_LOGGING", "0").lower() in ("1", "true", "yes")
@@ -31,11 +33,15 @@ def send_ntfy(title: str, message: str) -> None:
     if not NTFY_URL:
         return
     headers = {"Title": title} if title else {}
+    auth = None
+    if NTFY_USERNAME and NTFY_PASSWORD:
+        auth = (NTFY_USERNAME, NTFY_PASSWORD)
     try:
         requests.post(
             f"{NTFY_URL}/{NTFY_TOPIC}" if NTFY_TOPIC else NTFY_URL,
             headers=headers,
             data=message,
+            auth=auth,
             timeout=10,
         )
     except Exception:
