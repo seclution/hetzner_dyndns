@@ -47,8 +47,10 @@ component comes with its own `Dockerfile` inside the respective
 Start the backend service:
 
 ```bash
-docker compose -f backend/docker-compose.yml --env-file .secrets up
+docker compose -f backend/docker-compose.yml up
 ```
+The compose file already includes an `env_file` entry pointing to `.secrets`, so
+there is no need to pass it explicitly on the command line.
 
 Run the client (typically on another host) and point it to your backend:
 
