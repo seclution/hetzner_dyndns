@@ -24,7 +24,7 @@ The repository contains two parts:
 3. In `client/docker-compose.yml` adjust the environment variables:
    - `BACKEND_URL` – URL of the running backend
    - `FQDN` – fully qualified domain name to update
-   - `API_KEY` – value from `backend/pre-shared-key` (created on first backend start)
+   - `PRE_SHARED_KEY` – value from `backend/pre-shared-key` (created on first backend start)
 4. Start the containers:
 
 ```bash
@@ -65,7 +65,7 @@ The backend authenticates requests using a pre-shared key stored in
 `./pre-shared-key` on the host and mounted into the container at
 `/pre-shared-key` (see `backend/docker-compose.yml`). If the file does
 not exist on the first start, the service creates it and writes a random
-token. Use this value for the client's `API_KEY` setting.
+token. Use this value for the client's `PRE_SHARED_KEY` setting.
 
 When using Docker Compose, make sure the file exists and is writable by the
 container user. Otherwise Docker may create a directory instead of a file and
@@ -116,7 +116,7 @@ arguments:
 
 - `BACKEND_URL` – URL of the backend service
 - `FQDN` – fully qualified domain name to update
-- `API_KEY` – token from `backend/pre-shared-key`
+- `PRE_SHARED_KEY` – token from `backend/pre-shared-key`
 - `IP` – explicit IP address to set (optional)
 - `INTERVAL` – run repeatedly every given seconds (e.g. `3600` for hourly)
 - `CA_BUNDLE` – override certificate bundle path (optional)
@@ -138,7 +138,7 @@ Example cron entry using `curl`:
 
 ```cron
 */5 * * * * curl -sf -X POST -H 'Content-Type: application/json' \
-  -H 'X-API-Key: <token>' \
+  -H 'X-Pre-Shared-Key: <token>' \
   -d '{"fqdn":"host.example.com"}' https://backend.example.com/update
 ```
 

@@ -15,7 +15,7 @@ class DummyResp:
 
 def test_update_requires_api_key(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "API_KEY", "test")
+    monkeypatch.setattr(backend_app, "PRE_SHARED_KEY", "test")
     monkeypatch.setattr(
         backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
     )
@@ -26,7 +26,7 @@ def test_update_requires_api_key(monkeypatch):
 
 def test_update_creates_record(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "API_KEY", "test")
+    monkeypatch.setattr(backend_app, "PRE_SHARED_KEY", "test")
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
     monkeypatch.setattr(
         backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
@@ -50,7 +50,7 @@ def test_update_creates_record(monkeypatch):
     resp = client.post(
         "/update",
         json={"fqdn": "host.example.com", "ip": "1.2.3.4"},
-        headers={"X-API-Key": "test"},
+        headers={"X-Pre-Shared-Key": "test"},
     )
     assert resp.status_code == 200
     assert resp.get_json() == {"status": "created", "ip": "1.2.3.4"}
@@ -58,7 +58,7 @@ def test_update_creates_record(monkeypatch):
 
 def test_update_request_exception(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "API_KEY", "test")
+    monkeypatch.setattr(backend_app, "PRE_SHARED_KEY", "test")
     called = {}
     monkeypatch.setattr(
         backend_app,
@@ -78,7 +78,7 @@ def test_update_request_exception(monkeypatch):
     resp = client.post(
         "/update",
         json={"fqdn": "host.example.com"},
-        headers={"X-API-Key": "test"},
+        headers={"X-Pre-Shared-Key": "test"},
     )
     assert resp.status_code == 500
     data = resp.get_json()
@@ -88,7 +88,7 @@ def test_update_request_exception(monkeypatch):
 
 def test_update_updates_record(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "API_KEY", "test")
+    monkeypatch.setattr(backend_app, "PRE_SHARED_KEY", "test")
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
     monkeypatch.setattr(
         backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
@@ -114,7 +114,7 @@ def test_update_updates_record(monkeypatch):
     resp = client.post(
         "/update",
         json={"fqdn": "host.example.com", "ip": "1.2.3.4"},
-        headers={"X-API-Key": "test"},
+        headers={"X-Pre-Shared-Key": "test"},
     )
     assert resp.status_code == 200
     assert resp.get_json() == {"status": "updated", "ip": "1.2.3.4"}
@@ -122,7 +122,7 @@ def test_update_updates_record(monkeypatch):
 
 def test_update_api_failure(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "API_KEY", "test")
+    monkeypatch.setattr(backend_app, "PRE_SHARED_KEY", "test")
     called = {}
     monkeypatch.setattr(
         backend_app,
@@ -151,7 +151,7 @@ def test_update_api_failure(monkeypatch):
     resp = client.post(
         "/update",
         json={"fqdn": "host.example.com", "ip": "1.2.3.4"},
-        headers={"X-API-Key": "test"},
+        headers={"X-Pre-Shared-Key": "test"},
     )
     assert resp.status_code == 500
     data = resp.get_json()
@@ -162,7 +162,7 @@ def test_update_api_failure(monkeypatch):
 
 def test_invalid_ip(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "API_KEY", "test")
+    monkeypatch.setattr(backend_app, "PRE_SHARED_KEY", "test")
     monkeypatch.setattr(
         backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
     )
@@ -170,14 +170,14 @@ def test_invalid_ip(monkeypatch):
     resp = client.post(
         "/update",
         json={"fqdn": "host.example.com", "ip": "bad-ip"},
-        headers={"X-API-Key": "test"},
+        headers={"X-Pre-Shared-Key": "test"},
     )
     assert resp.status_code == 400
 
 
 def test_ipv6_record(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "API_KEY", "test")
+    monkeypatch.setattr(backend_app, "PRE_SHARED_KEY", "test")
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
     monkeypatch.setattr(
         backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
@@ -202,14 +202,14 @@ def test_ipv6_record(monkeypatch):
     resp = client.post(
         "/update",
         json={"fqdn": "host.example.com", "ip": "2001:db8::1", "type": "AAAA"},
-        headers={"X-API-Key": "test"},
+        headers={"X-Pre-Shared-Key": "test"},
     )
     assert resp.status_code == 200
 
 
 def test_ip_version_mismatch(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "API_KEY", "test")
+    monkeypatch.setattr(backend_app, "PRE_SHARED_KEY", "test")
     monkeypatch.setattr(
         backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
     )
@@ -217,14 +217,14 @@ def test_ip_version_mismatch(monkeypatch):
     resp = client.post(
         "/update",
         json={"fqdn": "host.example.com", "ip": "2001:db8::1"},
-        headers={"X-API-Key": "test"},
+        headers={"X-Pre-Shared-Key": "test"},
     )
     assert resp.status_code == 400
 
 
 def test_disallowed_domain(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "API_KEY", "test")
+    monkeypatch.setattr(backend_app, "PRE_SHARED_KEY", "test")
     monkeypatch.setattr(backend_app, "ALLOWED_ZONES", ["example.com"])
     monkeypatch.setattr(
         backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
@@ -234,14 +234,14 @@ def test_disallowed_domain(monkeypatch):
     resp = client.post(
         "/update",
         json={"fqdn": "host.other.com", "ip": "1.2.3.4"},
-        headers={"X-API-Key": "test"},
+        headers={"X-Pre-Shared-Key": "test"},
     )
     assert resp.status_code == 403
 
 
 def test_update_multi_level_zone(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "API_KEY", "test")
+    monkeypatch.setattr(backend_app, "PRE_SHARED_KEY", "test")
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
     monkeypatch.setattr(
         backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
@@ -275,7 +275,7 @@ def test_update_multi_level_zone(monkeypatch):
     resp = client.post(
         "/update",
         json={"fqdn": "host.example.co.uk", "ip": "1.2.3.4"},
-        headers={"X-API-Key": "test"},
+        headers={"X-Pre-Shared-Key": "test"},
     )
     assert resp.status_code == 200
     assert resp.get_json() == {"status": "created", "ip": "1.2.3.4"}
@@ -283,7 +283,7 @@ def test_update_multi_level_zone(monkeypatch):
 
 def test_root_domain_rejected(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "API_KEY", "test")
+    monkeypatch.setattr(backend_app, "PRE_SHARED_KEY", "test")
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
 
     def mock_get(url, headers=None, **kwargs):
@@ -297,14 +297,14 @@ def test_root_domain_rejected(monkeypatch):
     resp = client.post(
         "/update",
         json={"fqdn": "example.com", "ip": "1.2.3.4"},
-        headers={"X-API-Key": "test"},
+        headers={"X-Pre-Shared-Key": "test"},
     )
     assert resp.status_code == 400
 
 
 def test_basic_auth(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "API_KEY", "test")
+    monkeypatch.setattr(backend_app, "PRE_SHARED_KEY", "test")
     monkeypatch.setattr(backend_app, "BASIC_AUTH_USERNAME", "u")
     monkeypatch.setattr(backend_app, "BASIC_AUTH_PASSWORD", "p")
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
@@ -403,7 +403,7 @@ def test_nic_update_query_auth(monkeypatch):
 
 def test_record_ttl_from_env(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "API_KEY", "test")
+    monkeypatch.setattr(backend_app, "PRE_SHARED_KEY", "test")
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
     monkeypatch.setattr(
         backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
@@ -430,7 +430,7 @@ def test_record_ttl_from_env(monkeypatch):
     resp = client.post(
         "/update",
         json={"fqdn": "host.example.com", "ip": "1.2.3.4"},
-        headers={"X-API-Key": "test"},
+        headers={"X-Pre-Shared-Key": "test"},
     )
     assert resp.status_code == 200
     assert captured["ttl"] == 1234

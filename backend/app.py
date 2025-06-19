@@ -29,24 +29,24 @@ ZONE_CACHE_TTL = int(os.environ.get("ZONE_CACHE_TTL", "300"))  # seconds
 # Default TTL for created or updated DNS records
 RECORD_TTL = int(os.environ.get("RECORD_TTL", "86400"))
 
-# Pre-shared API key configuration
-API_KEY_FILE = "/pre-shared-key"
+# Pre-shared key configuration
+PRE_SHARED_KEY_FILE = "/pre-shared-key"
 
 
-def _load_api_key() -> str:
+def _load_pre_shared_key() -> str:
     key = ""
     try:
-        if os.path.exists(API_KEY_FILE):
-            with open(API_KEY_FILE, "r") as f:
+        if os.path.exists(PRE_SHARED_KEY_FILE):
+            with open(PRE_SHARED_KEY_FILE, "r") as f:
                 key = f.read().strip()
     except Exception:  # pragma: no cover - shouldn't happen
         app.logger.exception("Failed to read API key")
     if not key:
         key = secrets.token_urlsafe(32)
         try:
-            with open(API_KEY_FILE, "w") as f:
+            with open(PRE_SHARED_KEY_FILE, "w") as f:
                 f.write(key)
-            os.chmod(API_KEY_FILE, 0o600)
+            os.chmod(PRE_SHARED_KEY_FILE, 0o600)
         except Exception:  # pragma: no cover - shouldn't happen
             app.logger.exception("Failed to write API key")
     return key
@@ -88,7 +88,7 @@ if _file_handler_error:
 
 app.logger.setLevel(log_level)
 
-API_KEY = _load_api_key()
+PRE_SHARED_KEY = _load_pre_shared_key()
 
 
 def get_zones(force_refresh: bool = False):
@@ -362,7 +362,7 @@ def update():
         abort(500, "Backend not configured")
 
     auth_ok = False
-    if API_KEY and request.headers.get("X-API-Key") == API_KEY:
+    if PRE_SHARED_KEY and request.headers.get("X-Pre-Shared-Key") == PRE_SHARED_KEY:
         auth_ok = True
     if not auth_ok and BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD:
         auth = request.authorization
@@ -379,8 +379,8 @@ def update():
     if DEBUG_LOGGING:
         app.logger.debug("Request JSON: %s", data)
         headers = dict(request.headers)
-        if "X-API-Key" in headers:
-            headers["X-API-Key"] = "[REDACTED]"
+        if "X-Pre-Shared-Key" in headers:
+            headers["X-Pre-Shared-Key"] = "[REDACTED]"
         app.logger.debug("Request headers: %s", headers)
         app.logger.debug("Remote address: %s", request.remote_addr)
         if "X-Real-Ip" in request.headers:
