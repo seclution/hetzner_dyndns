@@ -40,7 +40,8 @@ python update_dns.py <backend_url> <fqdn> [ip]
 ```
 
 Environment variables `BACKEND_URL`, `FQDN` and `IP` can also be used instead of
-command‑line arguments.
+command‑line arguments. Setting `INTERVAL` to a number of seconds will repeat the
+update in that interval (e.g. `INTERVAL=3600` for hourly updates).
 
 ## Docker Compose
 
