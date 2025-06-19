@@ -1,0 +1,10 @@
+version: '3'
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    ports:
+      - "8000:80"
+    env_file:
+      - ../.secrets

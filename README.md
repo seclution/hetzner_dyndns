@@ -40,19 +40,26 @@ command‑line arguments.
 
 ## Docker Compose
 
-An example `docker-compose.yml` is included.  It starts the backend and a sample
-client container:
+Separate compose files are provided for the backend and the client.
+
+Start the backend service:
 
 ```bash
-docker compose --env-file .secrets up
+docker compose -f backend/docker-compose.yml --env-file .secrets up
+```
+
+Run the client (typically on another host) and point it to your backend:
+
+```bash
+docker compose -f client/docker-compose.yml up
 ```
 
 Edit `.secrets.example` and save it as `.secrets` with your credentials before
-starting the stack.
+starting the backend.
 
 ## GitHub Actions
 
-The repository contains a workflow that builds the backend Docker image and
-pushes it to Docker Hub.  Provide `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` as
-repository secrets for automated builds.
+A workflow builds Docker images for the backend and the client and
+pushes them to Docker Hub.  Provide `DOCKERHUB_USERNAME` and
+`DOCKERHUB_TOKEN` as repository secrets for automated builds.
 

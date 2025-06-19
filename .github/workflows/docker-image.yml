@@ -1,4 +1,4 @@
-name: Build and Push Docker Image
+name: Build and Push Docker Images
 
 on:
   push:
@@ -19,9 +19,17 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Build and push
+      - name: Build and push backend
         uses: docker/build-push-action@v4
         with:
           context: .
+          file: Dockerfile
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/hetzner-dyndns:latest
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/hetzner-dyndns-backend:latest
+      - name: Build and push client
+        uses: docker/build-push-action@v4
+        with:
+          context: ./client
+          file: ./client/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/hetzner-dyndns-client:latest
