@@ -87,3 +87,12 @@ repository secrets so the workflow can publish your images:
 The backend image is pushed to `IMAGE_NAME_BACKEND` and the client
 image to `IMAGE_NAME_CLIENT`.
 
+## Development
+
+Install the development requirements and run the test suite with `pytest`:
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
