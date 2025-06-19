@@ -46,7 +46,7 @@ def test_invalid_interval_defaults_to_zero(monkeypatch, capsys):
         status_code = 200
         text = ""
 
-    def mock_post(url, json=None, verify=None, timeout=None):
+    def mock_post(url, json=None, verify=None, timeout=None, headers=None):
         called["url"] = url
         return DummyResp()
 
@@ -97,3 +97,27 @@ def test_update_dns_non_2xx(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "500" in out
     assert "fail" in out
+
+
+def test_update_dns_sends_api_key(monkeypatch):
+    monkeypatch.setenv("BACKEND_URL", "http://b")
+    monkeypatch.setenv("FQDN", "host.example.com")
+    monkeypatch.setenv("API_KEY", "secret")
+    monkeypatch.delenv("IP", raising=False)
+
+    called = {}
+
+    class DummyResp:
+        status_code = 200
+        text = ""
+
+    def mock_post(url, json=None, headers=None, verify=None, timeout=None):
+        called['headers'] = headers
+        return DummyResp()
+
+    monkeypatch.setattr(update_dns.requests, "post", mock_post)
+    monkeypatch.setattr(update_dns, "get_verify_option", lambda: True)
+    monkeypatch.setattr(sys, "argv", ["update_dns.py"], raising=False)
+
+    update_dns.main()
+    assert called['headers'] == {"X-API-Key": "secret"}

@@ -23,6 +23,7 @@ def main():
     backend = os.environ.get('BACKEND_URL')
     fqdn = os.environ.get('FQDN')
     ip = os.environ.get('IP')
+    api_key = os.environ.get('API_KEY')
     try:
         interval = int(os.environ.get('INTERVAL', '0'))
     except (TypeError, ValueError):
@@ -52,10 +53,12 @@ def main():
         if ip:
             msg += f" ip={ip}"
         print(msg, flush=True)
+        headers = {"X-API-Key": api_key} if api_key else None
         try:
             resp = requests.post(
                 f"{backend.rstrip('/')}/update",
                 json=payload,
+                headers=headers,
                 verify=verify,
                 timeout=10,
             )

@@ -3,6 +3,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 from flask import Flask, request, jsonify, abort
 import requests
+import secrets
 
 app = Flask(__name__)
 
@@ -11,6 +12,12 @@ NTFY_URL = os.environ.get("NTFY_URL")
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC")
 NTFY_USERNAME = os.environ.get("NTFY_USERNAME")
 NTFY_PASSWORD = os.environ.get("NTFY_PASSWORD")
+API_KEY = os.environ.get("API_KEY")
+GENERATED_KEY = None
+if not API_KEY:
+    GENERATED_KEY = secrets.token_urlsafe(32)
+    API_KEY = GENERATED_KEY
+    print(f"Generated API key: {API_KEY}", flush=True)
 
 # Logging configuration
 DEBUG_LOGGING = os.environ.get("DEBUG_LOGGING", "0").lower() in ("1", "true", "yes")
@@ -52,6 +59,9 @@ def send_ntfy(title: str, message: str) -> None:
 def update():
     if not HETZNER_TOKEN:
         abort(500, 'Backend not configured')
+
+    if API_KEY and request.headers.get('X-API-Key') != API_KEY:
+        abort(401, 'Invalid API key')
 
     data = request.get_json(silent=True) or {}
     if DEBUG_LOGGING:

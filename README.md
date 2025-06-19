@@ -55,6 +55,7 @@ The container reads the following variables which should be provided via a
 `.secrets` file or other means:
 
 - `HETZNER_TOKEN` – API token for the Hetzner DNS API
+- `API_KEY` – shared secret required in the `X-API-Key` header
 - `NTFY_URL` – Base URL of your NTFY instance
 - `NTFY_TOPIC` – Topic name used for notifications
 - `NTFY_USERNAME` / `NTFY_PASSWORD` – credentials for basic auth with NTFY (optional)
