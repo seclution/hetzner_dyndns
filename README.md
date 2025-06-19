@@ -80,6 +80,24 @@ The client uses the [`certifi`](https://pypi.org/project/certifi/) package for
 certificate verification.  Set `CA_BUNDLE` to override the bundle path or set
 `VERIFY_SSL=0` to disable verification entirely.
 
+### Cron-based setup
+
+If you don't want to run the Docker client or the Python script continuously,
+you can trigger DNS updates from a cron job. The idea is to periodically call
+the backend's `/update` endpoint from your host.
+
+Example cron entry using `curl`:
+
+```cron
+*/5 * * * * curl -sf -X POST -H 'Content-Type: application/json' \
+  -d '{"fqdn":"host.example.com"}' https://backend.example.com/update
+```
+
+Replace the URL and `fqdn` with your values. The backend will use the IP address
+of the HTTP request if no `ip` field is supplied. This method is lightweight but
+lacks the built-in logging and isolated environment that the Docker client
+provides.
+
 ## Docker Compose
 
 Separate compose files are provided for the backend and the client. Each
