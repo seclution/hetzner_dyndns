@@ -66,7 +66,14 @@ starting the backend.
 ## GitHub Actions
 
 A workflow builds the Docker images from the local Dockerfiles and
-pushes them to Docker Hub. Provide `DOCKERHUB_USERNAME` and
-`DOCKERHUB_TOKEN` as repository secrets so the workflow can publish the
-`nmbit/hetzner-dyndns-backend` and `nmbit/hetzner-dyndns-client` images.
+pushes them to Docker Hub. Provide these repository secrets so the
+workflow can publish your images:
+
+- `DOCKERHUB_USERNAME`
+- `DOCKERHUB_TOKEN`
+- `IMAGE_NAME_BACKEND`
+- `IMAGE_NAME_CLIENT`
+
+The backend image is pushed to `IMAGE_NAME_BACKEND` and the client
+image to `IMAGE_NAME_CLIENT`.
 
