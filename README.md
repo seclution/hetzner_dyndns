@@ -43,6 +43,10 @@ Environment variables `BACKEND_URL`, `FQDN` and `IP` can also be used instead of
 command‑line arguments. Setting `INTERVAL` to a number of seconds will repeat the
 update in that interval (e.g. `INTERVAL=3600` for hourly updates).
 
+The client uses the [`certifi`](https://pypi.org/project/certifi/) package for
+certificate verification.  Set `CA_BUNDLE` to override the bundle path or set
+`VERIFY_SSL=0` to disable verification entirely.
+
 ## Docker Compose
 
 Separate compose files are provided for the backend and the client. Each
