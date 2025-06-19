@@ -13,19 +13,19 @@ The repository contains two parts:
    - `HETZNER_TOKEN` – your Hetzner DNS API token
    - `NTFY_URL` – base URL of your NTFY instance
    - `NTFY_TOPIC` – topic name for notifications
-2. In `client/docker-compose.yml` adjust the environment variables:
+2. In `hetzner_dyndns/client/docker-compose.yml` adjust the environment variables:
    - `BACKEND_URL` – URL of the running backend
    - `FQDN` – fully qualified domain name to update
-   - `API_KEY` – value from `backend/pre-shared-key` (created on first backend start)
+   - `API_KEY` – value from `hetzner_dyndns/backend/pre-shared-key` (created on first backend start)
 3. Start the containers:
 
 ```bash
-docker compose -f backend/docker-compose.yml up  # on server side
-docker compose -f client/docker-compose.yml up  # on client side
+docker compose -f hetzner_dyndns/backend/docker-compose.yml up  # on server side
+docker compose -f hetzner_dyndns/client/docker-compose.yml up  # on client side
 ```
 
-Compose files live in [`backend/docker-compose.yml`](backend/docker-compose.yml)
-and [`client/docker-compose.yml`](client/docker-compose.yml).
+Compose files live in [`hetzner_dyndns/backend/docker-compose.yml`](hetzner_dyndns/backend/docker-compose.yml)
+and [`hetzner_dyndns/client/docker-compose.yml`](hetzner_dyndns/client/docker-compose.yml).
 
 ---
 
@@ -51,7 +51,7 @@ the record type. Without it the backend defaults to an IPv4 `A` record.
 Both IPv4 and IPv6 addresses are validated using Python's `ipaddress`
 module before being accepted. The service notifies a configured NTFY topic
 about success or failure.
-Install the requirements with `pip install -r backend/requirements.txt` before running the service directly.
+Install the requirements with `pip install -r hetzner_dyndns/backend/requirements.txt` before running the service directly.
 
 The backend authenticates requests using a pre-shared key stored in
 `./pre-shared-key` on the host and mounted into the container at
@@ -79,10 +79,10 @@ The container reads the following variables which should be provided via a
 
 ## Client
 
-A small Python script is provided in `client/update_dns.py`.  It sends a request
+A small Python script is provided in `hetzner_dyndns/client/update_dns.py`.  It sends a request
 to the backend REST API and can be used directly or inside the included client
 container.  Usage:
-Install the requirements with `pip install -r client/requirements.txt` before running the script directly.
+Install the requirements with `pip install -r hetzner_dyndns/client/requirements.txt` before running the script directly.
 
 ```bash
 python update_dns.py <backend_url> <fqdn> [ip]
@@ -95,13 +95,13 @@ arguments:
 
 - `BACKEND_URL` – URL of the backend service
 - `FQDN` – fully qualified domain name to update
-- `API_KEY` – token from `backend/pre-shared-key`
+- `API_KEY` – token from `hetzner_dyndns/backend/pre-shared-key`
 - `IP` – explicit IP address to set (optional)
 - `INTERVAL` – run repeatedly every given seconds (e.g. `3600` for hourly)
 - `CA_BUNDLE` – override certificate bundle path (optional)
 - `VERIFY_SSL` – set to `0` to disable certificate verification
 
-Use the same variables in `client/docker-compose.yml` when running the container.
+Use the same variables in `hetzner_dyndns/client/docker-compose.yml` when running the container.
 
 The client uses the [`certifi`](https://pypi.org/project/certifi/) package for
 certificate verification.  Set `CA_BUNDLE` to override the bundle path or set
@@ -146,7 +146,7 @@ Uncomment the `build` sections if you want to build the images locally.
 Start the backend service:
 
 ```bash
-docker compose -f backend/docker-compose.yml up
+docker compose -f hetzner_dyndns/backend/docker-compose.yml up
 ```
 The compose file already includes an `env_file` entry pointing to `.secrets`, so
 there is no need to pass it explicitly on the command line.
@@ -154,7 +154,7 @@ there is no need to pass it explicitly on the command line.
 Run the client (typically on another host) and point it to your backend:
 
 ```bash
-docker compose -f client/docker-compose.yml up
+docker compose -f hetzner_dyndns/client/docker-compose.yml up
 ```
 
 Edit `.secrets.example` and save it as `.secrets` with your credentials before
