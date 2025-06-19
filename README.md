@@ -177,10 +177,16 @@ image to `IMAGE_NAME_CLIENT`.
 
 ## Development
 
-Install the development requirements and run the test suite with `pytest`:
+Install the development requirements and set up the pre-commit hook:
 
 ```bash
 pip install -r requirements-dev.txt
-pytest
+pre-commit install
+```
+
+Run the test suite with `pytest` or invoke all hooks using:
+
+```bash
+pre-commit run --all-files
 ```
 
