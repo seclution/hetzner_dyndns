@@ -4,6 +4,7 @@ from logging.handlers import RotatingFileHandler
 from flask import Flask, request, jsonify, abort
 import requests
 import secrets
+import ipaddress
 
 app = Flask(__name__)
 
@@ -12,6 +13,7 @@ NTFY_URL = os.environ.get("NTFY_URL")
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC")
 NTFY_USERNAME = os.environ.get("NTFY_USERNAME")
 NTFY_PASSWORD = os.environ.get("NTFY_PASSWORD")
+ALLOWED_ZONES = [z.strip().lower() for z in os.environ.get("ALLOWED_ZONES", "").split(',') if z.strip()]
 
 # Pre-shared API key configuration
 API_KEY_FILE = "/pre-shared-key"
@@ -100,6 +102,13 @@ def update():
         send_ntfy('Param Error', 'Missing FQDN')
         return jsonify({'error': 'Missing FQDN'}), 400
 
+    record_type = data.get('type', 'A').upper()
+    if record_type not in ('A', 'AAAA'):
+        app.logger.error("Request from %s invalid type: %s", request.remote_addr,
+                         record_type)
+        send_ntfy('Param Error', 'Invalid type')
+        return jsonify({'error': 'Invalid type'}), 400
+
     ip = data.get('ip')
     if not ip:
         ip = request.headers.get('X-Real-Ip')
@@ -107,6 +116,22 @@ def update():
         ip = request.headers.get('X-Forwarded-For').split(',')[0].strip()
     if not ip:
         ip = request.remote_addr
+
+    try:
+        ip_obj = ipaddress.ip_address(ip)
+    except ValueError:
+        app.logger.error("Request from %s invalid ip: %s", request.remote_addr, ip)
+        send_ntfy('Param Error', 'Invalid IP')
+        return jsonify({'error': 'Invalid IP'}), 400
+
+    if record_type == 'A' and ip_obj.version != 4:
+        app.logger.error("Request from %s ip version mismatch: %s", request.remote_addr, ip)
+        send_ntfy('Param Error', 'IP version mismatch')
+        return jsonify({'error': 'IP version mismatch'}), 400
+    if record_type == 'AAAA' and ip_obj.version != 6:
+        app.logger.error("Request from %s ip version mismatch: %s", request.remote_addr, ip)
+        send_ntfy('Param Error', 'IP version mismatch')
+        return jsonify({'error': 'IP version mismatch'}), 400
 
     domain_parts = url.split('.')
     if len(domain_parts) < 2:
@@ -116,6 +141,11 @@ def update():
 
     domain = '.'.join(domain_parts[-2:])
     subdomain = url[:-len(domain) - 1]
+
+    if ALLOWED_ZONES and domain.lower() not in ALLOWED_ZONES:
+        app.logger.error("Request from %s disallowed domain: %s", request.remote_addr, domain)
+        send_ntfy('Domain Not Allowed', domain)
+        return jsonify({'error': 'Domain not allowed'}), 403
 
     try:
         zones_resp = requests.get(
@@ -165,14 +195,14 @@ def update():
 
     record_id = None
     for record in records_resp.json().get('records', []):
-        if record.get('name') == subdomain and record.get('type') == 'A':
+        if record.get('name') == subdomain and record.get('type') == record_type:
             record_id = record.get('id')
             break
 
     payload = {
         'value': ip,
         'ttl': 86400,
-        'type': 'A',
+        'type': record_type,
         'name': subdomain,
         'zone_id': zone_id
     }
@@ -215,7 +245,7 @@ def update():
     if resp.ok:
         app.logger.info("%s request from %s for %s -> %s", action.lower(),
                         request.remote_addr, url, ip)
-        send_ntfy('DynDNS Success', f'{action} A record for {url} -> {ip}')
+        send_ntfy('DynDNS Success', f'{action} {record_type} record for {url} -> {ip}')
         return jsonify({'status': action.lower(), 'ip': ip}), 200
     else:
         app.logger.error("Failed to %s record for %s from %s: %s", action.lower(),

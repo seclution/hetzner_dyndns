@@ -132,3 +132,70 @@ def test_update_api_failure(monkeypatch):
     assert data.get("error") == "API failure"
     assert "fail" in data.get("detail")
     assert called.get('ntfy') is True
+
+
+def test_invalid_ip(monkeypatch):
+    monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
+    monkeypatch.setattr(backend_app, "API_KEY", "test")
+    client = backend_app.app.test_client()
+    resp = client.post(
+        "/update",
+        json={"fqdn": "host.example.com", "ip": "bad-ip"},
+        headers={"X-API-Key": "test"},
+    )
+    assert resp.status_code == 400
+
+
+def test_ipv6_record(monkeypatch):
+    monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
+    monkeypatch.setattr(backend_app, "API_KEY", "test")
+    monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
+
+    def mock_get(url, headers=None, **kwargs):
+        if url.endswith("/zones"):
+            return DummyResp({"zones": [{"id": "z1", "name": "example.com"}]})
+        elif url.startswith("https://dns.hetzner.com/api/v1/records"):
+            return DummyResp({"records": []})
+        raise AssertionError("unexpected GET " + url)
+
+    def mock_post(url, headers=None, json=None, **kwargs):
+        assert json["type"] == "AAAA"
+        assert json["value"] == "2001:db8::1"
+        return DummyResp({"record": {"id": "r1"}})
+
+    monkeypatch.setattr(backend_app.requests, "get", mock_get)
+    monkeypatch.setattr(backend_app.requests, "post", mock_post)
+
+    client = backend_app.app.test_client()
+    resp = client.post(
+        "/update",
+        json={"fqdn": "host.example.com", "ip": "2001:db8::1", "type": "AAAA"},
+        headers={"X-API-Key": "test"},
+    )
+    assert resp.status_code == 200
+
+
+def test_ip_version_mismatch(monkeypatch):
+    monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
+    monkeypatch.setattr(backend_app, "API_KEY", "test")
+    client = backend_app.app.test_client()
+    resp = client.post(
+        "/update",
+        json={"fqdn": "host.example.com", "ip": "2001:db8::1"},
+        headers={"X-API-Key": "test"},
+    )
+    assert resp.status_code == 400
+
+
+def test_disallowed_domain(monkeypatch):
+    monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
+    monkeypatch.setattr(backend_app, "API_KEY", "test")
+    monkeypatch.setattr(backend_app, "ALLOWED_ZONES", ["example.com"])
+
+    client = backend_app.app.test_client()
+    resp = client.post(
+        "/update",
+        json={"fqdn": "host.other.com", "ip": "1.2.3.4"},
+        headers={"X-API-Key": "test"},
+    )
+    assert resp.status_code == 403
