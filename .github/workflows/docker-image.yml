@@ -1,8 +1,8 @@
 name: Build and Push Docker Images
 
 on:
-  push:
-    branches: [ main ]
+  release:
+    types: [published]
   workflow_dispatch:
 
 jobs:
@@ -25,11 +25,15 @@ jobs:
           context: ./backend
           file: ./backend/Dockerfile
           push: true
-          tags: ${{ secrets.IMAGE_NAME_BACKEND }}:latest
+          tags: |
+            ${{ secrets.IMAGE_NAME_BACKEND }}:${{ github.event.release.tag_name }}
+            ${{ secrets.IMAGE_NAME_BACKEND }}:latest
       - name: Build and push client
         uses: docker/build-push-action@v4
         with:
           context: ./client
           file: ./client/Dockerfile
           push: true
-          tags: ${{ secrets.IMAGE_NAME_CLIENT }}:latest
+          tags: |
+            ${{ secrets.IMAGE_NAME_CLIENT }}:${{ github.event.release.tag_name }}
+            ${{ secrets.IMAGE_NAME_CLIENT }}:latest

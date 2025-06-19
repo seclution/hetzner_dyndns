@@ -70,9 +70,10 @@ starting the backend.
 
 ## GitHub Actions
 
-A workflow builds the Docker images from the local Dockerfiles and
-pushes them to Docker Hub. Provide these repository secrets so the
-workflow can publish your images:
+A workflow builds the Docker images from the local Dockerfiles when a
+GitHub release is published. The images are tagged with the release
+version as well as `latest` and then pushed to Docker Hub. Provide these
+repository secrets so the workflow can publish your images:
 
 - `DOCKERHUB_USERNAME`
 - `DOCKERHUB_TOKEN`
