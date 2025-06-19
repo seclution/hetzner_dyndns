@@ -58,20 +58,33 @@ DEBUG_LOGGING = os.environ.get("DEBUG_LOGGING", "0").lower() in (
     "true",
     "yes",
 )
-LOG_FILE = os.environ.get("LOG_FILE", "app.log")
+LOG_FILE = os.environ.get("LOG_FILE")
 LOG_MAX_BYTES = int(os.environ.get("LOG_MAX_BYTES", str(1 * 1024 * 1024)))
 LOG_BACKUP_COUNT = int(os.environ.get("LOG_BACKUP_COUNT", "3"))
 
 log_level = logging.DEBUG if DEBUG_LOGGING else logging.INFO
-handler = RotatingFileHandler(
-    LOG_FILE, maxBytes=LOG_MAX_BYTES, backupCount=LOG_BACKUP_COUNT
-)
+_log_handlers = [logging.StreamHandler()]
+_file_handler_error = None
+if LOG_FILE:
+    try:
+        _log_handlers.append(
+            RotatingFileHandler(
+                LOG_FILE, maxBytes=LOG_MAX_BYTES, backupCount=LOG_BACKUP_COUNT
+            )
+        )
+    except Exception as exc:  # pragma: no cover - shouldn't happen
+        _file_handler_error = exc
+
 logging.basicConfig(
     level=log_level,
     format="%(asctime)s %(levelname)s %(message)s",
-    handlers=[handler, logging.StreamHandler()],
+    handlers=_log_handlers,
     force=True,
 )
+if _file_handler_error:
+    logging.getLogger(__name__).error(
+        "Failed to set up file logging: %s", _file_handler_error
+    )
 
 app.logger.setLevel(log_level)
 
