@@ -22,7 +22,7 @@ def main():
     if ip:
         payload['ip'] = ip
 
-    resp = requests.post(f'{backend.rstrip('/')}/update', json=payload)
+    resp = requests.post(f"{backend.rstrip('/')}/update", json=payload)
     print(resp.status_code, resp.text)
 
 if __name__ == '__main__':
