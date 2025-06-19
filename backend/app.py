@@ -84,7 +84,10 @@ def update():
     data = request.get_json(silent=True) or {}
     if DEBUG_LOGGING:
         app.logger.debug("Request JSON: %s", data)
-        app.logger.debug("Request headers: %s", dict(request.headers))
+        headers = dict(request.headers)
+        if 'X-API-Key' in headers:
+            headers['X-API-Key'] = '[REDACTED]'
+        app.logger.debug("Request headers: %s", headers)
         app.logger.debug("Remote address: %s", request.remote_addr)
         if 'X-Real-Ip' in request.headers:
             app.logger.debug("X-Real-Ip: %s", request.headers.get('X-Real-Ip'))
