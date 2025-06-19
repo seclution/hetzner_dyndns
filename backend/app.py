@@ -147,6 +147,11 @@ def update():
         send_ntfy('Domain Not Allowed', domain)
         return jsonify({'error': 'Domain not allowed'}), 403
 
+    if not subdomain:
+        app.logger.error("Request from %s missing subdomain: %s", request.remote_addr, url)
+        send_ntfy('Param Error', 'Missing subdomain')
+        return jsonify({'error': 'Missing subdomain'}), 400
+
     try:
         zones_resp = requests.get(
             'https://dns.hetzner.com/api/v1/zones',

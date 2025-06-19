@@ -199,3 +199,17 @@ def test_disallowed_domain(monkeypatch):
         headers={"X-API-Key": "test"},
     )
     assert resp.status_code == 403
+
+
+def test_missing_subdomain(monkeypatch):
+    monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
+    monkeypatch.setattr(backend_app, "API_KEY", "test")
+
+    client = backend_app.app.test_client()
+    resp = client.post(
+        "/update",
+        json={"fqdn": "example.com", "ip": "1.2.3.4"},
+        headers={"X-API-Key": "test"},
+    )
+    assert resp.status_code == 400
+    assert resp.get_json().get("error") == "Missing subdomain"
