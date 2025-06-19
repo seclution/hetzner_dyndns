@@ -2,10 +2,12 @@ import os
 import sys
 import time
 import requests
+
 try:
     import certifi
 except ImportError:  # certifi might not be installed in some environments
     certifi = None
+
 
 def get_verify_option():
     """Return the verify parameter for requests based on environment vars."""
@@ -19,13 +21,14 @@ def get_verify_option():
         return certifi.where()
     return True
 
+
 def main():
-    backend = os.environ.get('BACKEND_URL')
-    api_key = os.environ.get('API_KEY')
-    fqdn = os.environ.get('FQDN')
-    ip = os.environ.get('IP')
+    backend = os.environ.get("BACKEND_URL")
+    api_key = os.environ.get("API_KEY")
+    fqdn = os.environ.get("FQDN")
+    ip = os.environ.get("IP")
     try:
-        interval = int(os.environ.get('INTERVAL', '0'))
+        interval = int(os.environ.get("INTERVAL", "0"))
     except (TypeError, ValueError):
         print("Invalid INTERVAL, defaulting to 0")
         interval = 0
@@ -38,17 +41,16 @@ def main():
         ip = sys.argv[3]
 
     if not api_key:
-        print('API_KEY not set')
+        print("API_KEY not set")
         sys.exit(1)
 
     if not backend or not fqdn:
-        print('Usage: update_dns.py <backend_url> <fqdn> [ip]')
+        print("Usage: update_dns.py <backend_url> <fqdn> [ip]")
         sys.exit(1)
 
-    payload = {'fqdn': fqdn}
+    payload = {"fqdn": fqdn}
     if ip:
-        payload['ip'] = ip
-
+        payload["ip"] = ip
 
     while True:
         verify = get_verify_option()
@@ -79,5 +81,6 @@ def main():
             break
         time.sleep(interval)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
