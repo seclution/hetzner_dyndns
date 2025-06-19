@@ -37,6 +37,10 @@ def main():
     if len(sys.argv) > 3:
         ip = sys.argv[3]
 
+    if not api_key:
+        print('API_KEY not set')
+        sys.exit(1)
+
     if not backend or not fqdn:
         print('Usage: update_dns.py <backend_url> <fqdn> [ip]')
         sys.exit(1)

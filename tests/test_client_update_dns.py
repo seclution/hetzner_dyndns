@@ -38,6 +38,7 @@ def test_invalid_interval_defaults_to_zero(monkeypatch, capsys):
     monkeypatch.setenv("BACKEND_URL", "http://b")
     monkeypatch.setenv("FQDN", "host.example.com")
     monkeypatch.setenv("INTERVAL", "bad")
+    monkeypatch.setenv("API_KEY", "k")
     monkeypatch.delenv("IP", raising=False)
 
     called = {}
@@ -62,6 +63,7 @@ def test_invalid_interval_defaults_to_zero(monkeypatch, capsys):
 def test_update_dns_request_exception(monkeypatch, capsys):
     monkeypatch.setenv("BACKEND_URL", "http://b")
     monkeypatch.setenv("FQDN", "host.example.com")
+    monkeypatch.setenv("API_KEY", "k")
     monkeypatch.delenv("IP", raising=False)
 
     def mock_post(*args, **kwargs):
@@ -80,6 +82,7 @@ def test_update_dns_request_exception(monkeypatch, capsys):
 def test_update_dns_non_2xx(monkeypatch, capsys):
     monkeypatch.setenv("BACKEND_URL", "http://b")
     monkeypatch.setenv("FQDN", "host.example.com")
+    monkeypatch.setenv("API_KEY", "k")
     monkeypatch.delenv("IP", raising=False)
 
     class DummyResp:
@@ -97,3 +100,16 @@ def test_update_dns_non_2xx(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "500" in out
     assert "fail" in out
+
+
+def test_missing_api_key(monkeypatch, capsys):
+    monkeypatch.setenv("BACKEND_URL", "http://b")
+    monkeypatch.setenv("FQDN", "host.example.com")
+    monkeypatch.delenv("API_KEY", raising=False)
+    monkeypatch.delenv("IP", raising=False)
+    monkeypatch.setattr(sys, "argv", ["update_dns.py"], raising=False)
+
+    with pytest.raises(SystemExit) as exc:
+        update_dns.main()
+    assert exc.value.code == 1
+    assert "API_KEY not set" in capsys.readouterr().out
