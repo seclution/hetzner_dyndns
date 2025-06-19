@@ -8,7 +8,8 @@ The repository contains two parts:
 - **client** – optional container/script calling the backend from the host whose
   IP should be used.
 
-1. Copy [`.secrets.example`](.secrets.example) to `.secrets` and fill in at
+1. Copy [`backend/.secrets.example`](backend/.secrets.example) to
+   `backend/.secrets` and fill in at
    least these variables:
    - `HETZNER_TOKEN` – your Hetzner DNS API token
    - `NTFY_URL` – base URL of your NTFY instance
@@ -62,7 +63,7 @@ token. Use this value for the client's `API_KEY` setting.
 ### Environment variables
 
 The container reads the following variables which should be provided via a
-`.secrets` file or other means:
+`backend/.secrets` file or other means:
 
 - `HETZNER_TOKEN` – API token for the Hetzner DNS API
 - `NTFY_URL` – Base URL of your NTFY instance
@@ -149,8 +150,9 @@ Start the backend service:
 ```bash
 docker compose -f backend/docker-compose.yml up
 ```
-The compose file already includes an `env_file` entry pointing to `.secrets`, so
-there is no need to pass it explicitly on the command line.
+The compose file already includes an `env_file` entry pointing to
+`backend/.secrets`, so there is no need to pass it explicitly on the
+command line.
 
 Run the client (typically on another host) and point it to your backend:
 
@@ -158,7 +160,7 @@ Run the client (typically on another host) and point it to your backend:
 docker compose -f client/docker-compose.yml up
 ```
 
-Edit `.secrets.example` and save it as `.secrets` with your credentials before
+Edit `backend/.secrets.example` and save it as `backend/.secrets` with your credentials before
 starting the backend.
 
 ## GitHub Actions
