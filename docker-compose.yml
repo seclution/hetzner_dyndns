@@ -1,0 +1,16 @@
+version: '3'
+services:
+  backend:
+    build: .
+    ports:
+      - "8000:80"
+    env_file:
+      - .secrets
+  # Example client service - typically run on remote host
+  client:
+    build: ./client
+    environment:
+      - BACKEND_URL=http://backend:80
+      - FQDN=example.yourdomain.tld
+    depends_on:
+      - backend
