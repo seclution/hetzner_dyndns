@@ -19,14 +19,16 @@ The repository contains two parts:
 3. Start the containers:
 
 ```bash
-docker compose -f backend/docker-compose.yml up
-docker compose -f client/docker-compose.yml up  # optional
+docker compose -f backend/docker-compose.yml up  # on server side
+docker compose -f client/docker-compose.yml up  # on client side
 ```
 
 Compose files live in [`backend/docker-compose.yml`](backend/docker-compose.yml)
 and [`client/docker-compose.yml`](client/docker-compose.yml).
 
 ---
+
+# Readme
 
 This project provides a lightweight REST API for updating Hetzner DNS A records.
 It consists of a backend service that communicates with the Hetzner DNS API and
