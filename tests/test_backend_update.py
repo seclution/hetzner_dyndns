@@ -15,6 +15,7 @@ class DummyResp:
 def test_update_requires_api_key(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
     monkeypatch.setattr(backend_app, "API_KEY", "test")
+    monkeypatch.setattr(backend_app, "ZONE_CACHE", {"zones": None, "expires": 0})
     client = backend_app.app.test_client()
     resp = client.post("/update", json={"fqdn": "host.example.com"})
     assert resp.status_code == 401
@@ -24,6 +25,7 @@ def test_update_creates_record(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
     monkeypatch.setattr(backend_app, "API_KEY", "test")
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
+    monkeypatch.setattr(backend_app, "ZONE_CACHE", {"zones": None, "expires": 0})
 
     def mock_get(url, headers=None, **kwargs):
         if url.endswith("/zones"):
@@ -54,6 +56,7 @@ def test_update_request_exception(monkeypatch):
     monkeypatch.setattr(backend_app, "API_KEY", "test")
     called = {}
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: called.setdefault('ntfy', True))
+    monkeypatch.setattr(backend_app, "ZONE_CACHE", {"zones": None, "expires": 0})
 
     def mock_get(*args, **kwargs):
         raise backend_app.requests.RequestException("boom")
@@ -76,6 +79,7 @@ def test_update_updates_record(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
     monkeypatch.setattr(backend_app, "API_KEY", "test")
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
+    monkeypatch.setattr(backend_app, "ZONE_CACHE", {"zones": None, "expires": 0})
 
     def mock_get(url, headers=None, **kwargs):
         if url.endswith("/zones"):
@@ -106,6 +110,7 @@ def test_update_api_failure(monkeypatch):
     monkeypatch.setattr(backend_app, "API_KEY", "test")
     called = {}
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: called.setdefault('ntfy', True))
+    monkeypatch.setattr(backend_app, "ZONE_CACHE", {"zones": None, "expires": 0})
 
     def mock_get(url, headers=None, **kwargs):
         if url.endswith("/zones"):
@@ -137,6 +142,7 @@ def test_update_api_failure(monkeypatch):
 def test_invalid_ip(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
     monkeypatch.setattr(backend_app, "API_KEY", "test")
+    monkeypatch.setattr(backend_app, "ZONE_CACHE", {"zones": None, "expires": 0})
     client = backend_app.app.test_client()
     resp = client.post(
         "/update",
@@ -150,6 +156,7 @@ def test_ipv6_record(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
     monkeypatch.setattr(backend_app, "API_KEY", "test")
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
+    monkeypatch.setattr(backend_app, "ZONE_CACHE", {"zones": None, "expires": 0})
 
     def mock_get(url, headers=None, **kwargs):
         if url.endswith("/zones"):
@@ -178,6 +185,7 @@ def test_ipv6_record(monkeypatch):
 def test_ip_version_mismatch(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
     monkeypatch.setattr(backend_app, "API_KEY", "test")
+    monkeypatch.setattr(backend_app, "ZONE_CACHE", {"zones": None, "expires": 0})
     client = backend_app.app.test_client()
     resp = client.post(
         "/update",
@@ -191,6 +199,7 @@ def test_disallowed_domain(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
     monkeypatch.setattr(backend_app, "API_KEY", "test")
     monkeypatch.setattr(backend_app, "ALLOWED_ZONES", ["example.com"])
+    monkeypatch.setattr(backend_app, "ZONE_CACHE", {"zones": None, "expires": 0})
 
     client = backend_app.app.test_client()
     resp = client.post(
@@ -205,6 +214,7 @@ def test_update_multi_level_zone(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
     monkeypatch.setattr(backend_app, "API_KEY", "test")
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
+    monkeypatch.setattr(backend_app, "ZONE_CACHE", {"zones": None, "expires": 0})
 
     def mock_get(url, headers=None, **kwargs):
         if url.endswith("/zones"):
