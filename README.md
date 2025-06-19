@@ -31,7 +31,7 @@ and [`client/docker-compose.yml`](client/docker-compose.yml).
 
 # Readme
 
-This project provides a lightweight REST API for updating Hetzner DNS A records.
+This project provides a lightweight REST API for updating Hetzner DNS A/AAAA records.
 It consists of a backend service that communicates with the Hetzner DNS API and
 an optional client that can be run on remote systems to trigger updates.
 
@@ -46,8 +46,11 @@ endpoint accepts JSON payloads of the form:
 
 `ip` is optional. If omitted, the backend uses the `X-Real-Ip` header if
 present, then `X-Forwarded-For`, and finally the source IP of the HTTP request.
-The
-service notifies a configured NTFY topic about success or failure.
+An optional `type` field may be provided with `A` or `AAAA` to explicitly select
+the record type. Without it the backend defaults to an IPv4 `A` record.
+Both IPv4 and IPv6 addresses are validated using Python's `ipaddress`
+module before being accepted. The service notifies a configured NTFY topic
+about success or failure.
 Install the requirements with `pip install -r backend/requirements.txt` before running the service directly.
 
 The backend authenticates requests using a pre-shared key stored in
@@ -70,6 +73,8 @@ The container reads the following variables which should be provided via a
 - `LOG_MAX_BYTES` – maximum size of the log file before rotation (default 1048576)
 - `LOG_BACKUP_COUNT` – number of rotated log files to keep (default 3)
 - `LISTEN_PORT` – port the application listens on (default `80`)
+- `ALLOWED_ZONES` – comma-separated list of domain zones allowed for updates
+  (empty means all zones are allowed)
 
 ## Client
 
