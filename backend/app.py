@@ -45,6 +45,10 @@ def update():
     data = request.get_json(silent=True) or {}
     if DEBUG_LOGGING:
         app.logger.debug("Request JSON: %s", data)
+        app.logger.debug("Request headers: %s", dict(request.headers))
+        app.logger.debug("Remote address: %s", request.remote_addr)
+        if 'X-Forwarded-For' in request.headers:
+            app.logger.debug("X-Forwarded-For: %s", request.headers.get('X-Forwarded-For'))
     url = data.get('fqdn') or data.get('url')
     if not url:
         app.logger.error("Request from %s missing fqdn", request.remote_addr)
