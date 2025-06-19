@@ -10,3 +10,5 @@ services:
       - "8000:80"
     env_file:
       - ./.secrets
+    volumes:
+      - ./pre-shared-key:/pre-shared-key

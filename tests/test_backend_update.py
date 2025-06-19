@@ -12,8 +12,17 @@ class DummyResp:
         return self._json
 
 
+def test_update_requires_api_key(monkeypatch):
+    monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
+    monkeypatch.setattr(backend_app, "API_KEY", "test")
+    client = backend_app.app.test_client()
+    resp = client.post("/update", json={"fqdn": "host.example.com"})
+    assert resp.status_code == 401
+
+
 def test_update_creates_record(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
+    monkeypatch.setattr(backend_app, "API_KEY", "test")
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
 
     def mock_get(url, headers=None, **kwargs):
@@ -31,13 +40,18 @@ def test_update_creates_record(monkeypatch):
     monkeypatch.setattr(backend_app.requests, "post", mock_post)
 
     client = backend_app.app.test_client()
-    resp = client.post("/update", json={"fqdn": "host.example.com", "ip": "1.2.3.4"})
+    resp = client.post(
+        "/update",
+        json={"fqdn": "host.example.com", "ip": "1.2.3.4"},
+        headers={"X-API-Key": "test"},
+    )
     assert resp.status_code == 200
     assert resp.get_json() == {"status": "created", "ip": "1.2.3.4"}
 
 
 def test_update_request_exception(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
+    monkeypatch.setattr(backend_app, "API_KEY", "test")
     called = {}
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: called.setdefault('ntfy', True))
 
@@ -47,7 +61,11 @@ def test_update_request_exception(monkeypatch):
     monkeypatch.setattr(backend_app.requests, "get", mock_get)
 
     client = backend_app.app.test_client()
-    resp = client.post("/update", json={"fqdn": "host.example.com"})
+    resp = client.post(
+        "/update",
+        json={"fqdn": "host.example.com"},
+        headers={"X-API-Key": "test"},
+    )
     assert resp.status_code == 500
     data = resp.get_json()
     assert "error" in data
@@ -56,6 +74,7 @@ def test_update_request_exception(monkeypatch):
 
 def test_update_updates_record(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
+    monkeypatch.setattr(backend_app, "API_KEY", "test")
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
 
     def mock_get(url, headers=None, **kwargs):
@@ -73,13 +92,18 @@ def test_update_updates_record(monkeypatch):
     monkeypatch.setattr(backend_app.requests, "put", mock_put)
 
     client = backend_app.app.test_client()
-    resp = client.post("/update", json={"fqdn": "host.example.com", "ip": "1.2.3.4"})
+    resp = client.post(
+        "/update",
+        json={"fqdn": "host.example.com", "ip": "1.2.3.4"},
+        headers={"X-API-Key": "test"},
+    )
     assert resp.status_code == 200
     assert resp.get_json() == {"status": "updated", "ip": "1.2.3.4"}
 
 
 def test_update_api_failure(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
+    monkeypatch.setattr(backend_app, "API_KEY", "test")
     called = {}
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: called.setdefault('ntfy', True))
 
@@ -98,7 +122,11 @@ def test_update_api_failure(monkeypatch):
     monkeypatch.setattr(backend_app.requests, "post", mock_post)
 
     client = backend_app.app.test_client()
-    resp = client.post("/update", json={"fqdn": "host.example.com", "ip": "1.2.3.4"})
+    resp = client.post(
+        "/update",
+        json={"fqdn": "host.example.com", "ip": "1.2.3.4"},
+        headers={"X-API-Key": "test"},
+    )
     assert resp.status_code == 500
     data = resp.get_json()
     assert data.get("error") == "API failure"
