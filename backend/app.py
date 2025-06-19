@@ -139,13 +139,18 @@ def update():
         send_ntfy('Param Error', 'Invalid FQDN')
         return jsonify({'error': 'Invalid FQDN'}), 400
 
-    domain = '.'.join(domain_parts[-2:])
-    subdomain = url[:-len(domain) - 1]
-
-    if ALLOWED_ZONES and domain.lower() not in ALLOWED_ZONES:
-        app.logger.error("Request from %s disallowed domain: %s", request.remote_addr, domain)
-        send_ntfy('Domain Not Allowed', domain)
-        return jsonify({'error': 'Domain not allowed'}), 403
+    if ALLOWED_ZONES:
+        allowed = False
+        fqdn_lower = url.lower()
+        for zone in ALLOWED_ZONES:
+            zone_lower = zone.lower()
+            if fqdn_lower == zone_lower or fqdn_lower.endswith('.' + zone_lower):
+                allowed = True
+                break
+        if not allowed:
+            app.logger.error("Request from %s disallowed domain: %s", request.remote_addr, url)
+            send_ntfy('Domain Not Allowed', url)
+            return jsonify({'error': 'Domain not allowed'}), 403
 
     try:
         zones_resp = requests.get(
@@ -165,16 +170,36 @@ def update():
         return jsonify({'error': 'Failed to fetch zones'}), 500
 
     zone_id = None
+    zone_name = None
+    subdomain = None
+    longest = 0
+    fqdn_lower = url.lower()
     for zone in zones_resp.json().get('zones', []):
-        if zone.get('name') == domain:
-            zone_id = zone.get('id')
-            break
+        name = zone.get('name', '')
+        lower_name = name.lower()
+        if fqdn_lower == lower_name:
+            if len(name) > longest:
+                zone_id = zone.get('id')
+                zone_name = name
+                subdomain = ''
+                longest = len(name)
+        elif fqdn_lower.endswith('.' + lower_name):
+            if len(name) > longest:
+                zone_id = zone.get('id')
+                zone_name = name
+                subdomain = url[:-len(name) - 1]
+                longest = len(name)
 
     if not zone_id:
-        app.logger.error("Zone not found for %s from %s", domain,
+        app.logger.error("Zone not found for %s from %s", url,
                          request.remote_addr)
-        send_ntfy('Zone Not Found', f'No matching zone for {domain}')
+        send_ntfy('Zone Not Found', f'No matching zone for {url}')
         return jsonify({'error': 'Zone not found'}), 404
+
+    if ALLOWED_ZONES and zone_name.lower() not in ALLOWED_ZONES:
+        app.logger.error("Request from %s disallowed domain: %s", request.remote_addr, zone_name)
+        send_ntfy('Domain Not Allowed', zone_name)
+        return jsonify({'error': 'Domain not allowed'}), 403
 
     try:
         records_resp = requests.get(
