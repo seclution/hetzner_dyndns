@@ -40,7 +40,8 @@ python update_dns.py <backend_url> <fqdn> [ip]
 ```
 
 Environment variables `BACKEND_URL`, `FQDN` and `IP` can also be used instead of
-command‑line arguments.
+command‑line arguments. Setting `INTERVAL` to a number of seconds will repeat the
+update in that interval (e.g. `INTERVAL=3600` for hourly updates).
 
 The client uses the [`certifi`](https://pypi.org/project/certifi/) package for
 certificate verification.  Set `CA_BUNDLE` to override the bundle path or set
@@ -73,9 +74,10 @@ starting the backend.
 
 ## GitHub Actions
 
-A workflow builds the Docker images from the local Dockerfiles and
-pushes them to Docker Hub. Provide these repository secrets so the
-workflow can publish your images:
+A workflow builds the Docker images from the local Dockerfiles when a
+GitHub release is published. The images are tagged with the release
+version as well as `latest` and then pushed to Docker Hub. Provide these
+repository secrets so the workflow can publish your images:
 
 - `DOCKERHUB_USERNAME`
 - `DOCKERHUB_TOKEN`
