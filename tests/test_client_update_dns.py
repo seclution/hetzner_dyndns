@@ -30,3 +30,24 @@ def test_get_verify_option_default(monkeypatch):
     monkeypatch.delenv("VERIFY_SSL", raising=False)
     monkeypatch.setattr(update_dns, "certifi", None, raising=False)
     assert update_dns.get_verify_option() is True
+
+
+def test_invalid_interval_defaults_to_zero(monkeypatch, capsys):
+    monkeypatch.setenv("BACKEND_URL", "http://b")
+    monkeypatch.setenv("FQDN", "host.example.com")
+    monkeypatch.setenv("INTERVAL", "bad")
+    monkeypatch.delenv("IP", raising=False)
+
+    called = {}
+
+    def mock_post(url, json=None, verify=None, timeout=None):
+        called["url"] = url
+        return type("R", (), {})()
+
+    monkeypatch.setattr(update_dns.requests, "post", mock_post)
+    monkeypatch.setattr(update_dns, "get_verify_option", lambda: True)
+    monkeypatch.setattr(sys, "argv", ["update_dns.py"], raising=False)
+
+    update_dns.main()
+    assert called["url"] == "http://b/update"
+    assert "Invalid INTERVAL" in capsys.readouterr().out
