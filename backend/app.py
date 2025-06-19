@@ -5,6 +5,7 @@ from flask import Flask, request, jsonify, abort
 import requests
 import secrets
 import ipaddress
+import time
 
 app = Flask(__name__)
 
@@ -55,6 +56,44 @@ logging.basicConfig(level=log_level,
                     force=True)
 
 app.logger.setLevel(log_level)
+
+# Zone ID caching configuration
+ZONE_CACHE_TTL = int(os.environ.get("ZONE_CACHE_TTL", "3600"))
+# {domain: (zone_id, expire_timestamp)}
+_zone_cache: dict[str, tuple[str, float]] = {}
+
+
+def _get_cached_zone(domain: str) -> str | None:
+    entry = _zone_cache.get(domain)
+    if entry and entry[1] > time.time():
+        return entry[0]
+    return None
+
+
+def _set_zone_cache(domain: str, zone_id: str) -> None:
+    _zone_cache[domain] = (zone_id, time.time() + ZONE_CACHE_TTL)
+
+
+def _get_zone_id(domain: str) -> str | None:
+    cached = _get_cached_zone(domain)
+    if cached:
+        return cached
+
+    resp = requests.get(
+        'https://dns.hetzner.com/api/v1/zones',
+        headers={'Auth-API-Token': HETZNER_TOKEN},
+        timeout=10,
+    )
+    if resp.status_code != 200:
+        raise ValueError(resp.text)
+
+    for zone in resp.json().get('zones', []):
+        if zone.get('name') == domain:
+            zone_id = zone.get('id')
+            if zone_id:
+                _set_zone_cache(domain, zone_id)
+            return zone_id
+    return None
 
 
 def send_ntfy(title: str, message: str) -> None:
@@ -148,27 +187,17 @@ def update():
         return jsonify({'error': 'Domain not allowed'}), 403
 
     try:
-        zones_resp = requests.get(
-            'https://dns.hetzner.com/api/v1/zones',
-            headers={'Auth-API-Token': HETZNER_TOKEN},
-            timeout=10,
-        )
+        zone_id = _get_zone_id(domain)
     except requests.RequestException as exc:
         app.logger.exception("Zone fetch exception for %s from %s", url,
                              request.remote_addr)
         send_ntfy('Zone Fetch Error', str(exc))
         return jsonify({'error': 'Failed to fetch zones', 'detail': str(exc)}), 500
-    if zones_resp.status_code != 200:
+    except ValueError as exc:
         app.logger.error("Zone fetch failed for %s from %s: %s", url,
-                         request.remote_addr, zones_resp.text)
-        send_ntfy('Zone Fetch Failed', zones_resp.text)
+                         request.remote_addr, str(exc))
+        send_ntfy('Zone Fetch Failed', str(exc))
         return jsonify({'error': 'Failed to fetch zones'}), 500
-
-    zone_id = None
-    for zone in zones_resp.json().get('zones', []):
-        if zone.get('name') == domain:
-            zone_id = zone.get('id')
-            break
 
     if not zone_id:
         app.logger.error("Zone not found for %s from %s", domain,

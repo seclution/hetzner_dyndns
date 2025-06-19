@@ -75,6 +75,7 @@ The container reads the following variables which should be provided via a
 - `LISTEN_PORT` – port the application listens on (default `80`)
 - `ALLOWED_ZONES` – comma-separated list of domain zones allowed for updates
   (empty means all zones are allowed)
+- `ZONE_CACHE_TTL` – seconds to cache zone IDs (default `3600`)
 
 ## Client
 
