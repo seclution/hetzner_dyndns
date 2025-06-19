@@ -16,6 +16,7 @@ The repository contains two parts:
 2. In `client/docker-compose.yml` adjust the environment variables:
    - `BACKEND_URL` – URL of the running backend
    - `FQDN` – fully qualified domain name to update
+   - `API_KEY` – value from `backend/pre-shared-key` (created on first backend start)
 3. Start the containers:
 
 ```bash
@@ -49,6 +50,12 @@ The
 service notifies a configured NTFY topic about success or failure.
 Install the requirements with `pip install -r backend/requirements.txt` before running the service directly.
 
+The backend authenticates requests using a pre-shared key stored in
+`./pre-shared-key` on the host and mounted into the container at
+`/pre-shared-key` (see `backend/docker-compose.yml`). If the file does
+not exist on the first start, the service creates it and writes a random
+token. Use this value for the client's `API_KEY` setting.
+
 ### Environment variables
 
 The container reads the following variables which should be provided via a
@@ -62,6 +69,7 @@ The container reads the following variables which should be provided via a
 - `LOG_FILE` – path to the rotating log file (default `app.log`)
 - `LOG_MAX_BYTES` – maximum size of the log file before rotation (default 1048576)
 - `LOG_BACKUP_COUNT` – number of rotated log files to keep (default 3)
+- `LISTEN_PORT` – port the application listens on (default `80`)
 
 ## Client
 
@@ -74,9 +82,20 @@ Install the requirements with `pip install -r client/requirements.txt` before ru
 python update_dns.py <backend_url> <fqdn> [ip]
 ```
 
-Environment variables `BACKEND_URL`, `FQDN` and `IP` can also be used instead of
-command‑line arguments. Setting `INTERVAL` to a number of seconds will repeat the
-update in that interval (e.g. `INTERVAL=3600` for hourly updates).
+### Environment variables
+
+The client can be configured via environment variables instead of command-line
+arguments:
+
+- `BACKEND_URL` – URL of the backend service
+- `FQDN` – fully qualified domain name to update
+- `API_KEY` – token from `backend/pre-shared-key`
+- `IP` – explicit IP address to set (optional)
+- `INTERVAL` – run repeatedly every given seconds (e.g. `3600` for hourly)
+- `CA_BUNDLE` – override certificate bundle path (optional)
+- `VERIFY_SSL` – set to `0` to disable certificate verification
+
+Use the same variables in `client/docker-compose.yml` when running the container.
 
 The client uses the [`certifi`](https://pypi.org/project/certifi/) package for
 certificate verification.  Set `CA_BUNDLE` to override the bundle path or set
@@ -92,6 +111,7 @@ Example cron entry using `curl`:
 
 ```cron
 */5 * * * * curl -sf -X POST -H 'Content-Type: application/json' \
+  -H 'X-API-Key: <token>' \
   -d '{"fqdn":"host.example.com"}' https://backend.example.com/update
 ```
 
