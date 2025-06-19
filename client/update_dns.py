@@ -47,6 +47,11 @@ def main():
 
     while True:
         verify = get_verify_option()
+        # Log the request that is about to be sent so it appears in docker logs
+        msg = f"Sending update to {backend} for {fqdn}"
+        if ip:
+            msg += f" ip={ip}"
+        print(msg, flush=True)
         try:
             resp = requests.post(
                 f"{backend.rstrip('/')}/update",
@@ -58,8 +63,10 @@ def main():
             print(exc)
             sys.exit(1)
 
+        # Print the response status and body for logging purposes
+        print(f"{resp.status_code} {resp.text}", flush=True)
+
         if not (200 <= resp.status_code < 300):
-            print(resp.status_code, resp.text)
             sys.exit(1)
 
         if interval <= 0:
