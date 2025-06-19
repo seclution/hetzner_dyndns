@@ -15,6 +15,8 @@ NTFY_TOPIC = os.environ.get("NTFY_TOPIC")
 NTFY_USERNAME = os.environ.get("NTFY_USERNAME")
 NTFY_PASSWORD = os.environ.get("NTFY_PASSWORD")
 ALLOWED_ZONES = [z.strip().lower() for z in os.environ.get("ALLOWED_ZONES", "").split(',') if z.strip()]
+BASIC_AUTH_USERNAME = os.environ.get("BASIC_AUTH_USERNAME")
+BASIC_AUTH_PASSWORD = os.environ.get("BASIC_AUTH_PASSWORD")
 
 # Cache for zone information to reduce API calls
 ZONE_CACHE = {"zones": None, "expires": 0}
@@ -137,110 +139,54 @@ def send_ntfy(title: str, message: str) -> None:
         app.logger.exception("Failed to send ntfy message")
 
 
-@app.route('/update', methods=['POST'])
-def update():
-    if not HETZNER_TOKEN:
-        abort(500, 'Backend not configured')
+def perform_update(fqdn: str, ip: str, record_type: str = 'A', *, skip_no_change: bool = False):
+    """Create or update a DNS record and return the action performed."""
 
-    if request.headers.get('X-API-Key') != API_KEY:
-        return jsonify({'error': 'Unauthorized'}), 401
-
-    data = request.get_json(silent=True) or {}
-    if DEBUG_LOGGING:
-        app.logger.debug("Request JSON: %s", data)
-        headers = dict(request.headers)
-        if 'X-API-Key' in headers:
-            headers['X-API-Key'] = '[REDACTED]'
-        app.logger.debug("Request headers: %s", headers)
-        app.logger.debug("Remote address: %s", request.remote_addr)
-        if 'X-Real-Ip' in request.headers:
-            app.logger.debug("X-Real-Ip: %s", request.headers.get('X-Real-Ip'))
-        if 'X-Forwarded-For' in request.headers:
-            app.logger.debug("X-Forwarded-For: %s", request.headers.get('X-Forwarded-For'))
-    url = data.get('fqdn') or data.get('url')
-    if not url:
-        app.logger.error("Request from %s missing fqdn", request.remote_addr)
-        send_ntfy('Param Error', 'Missing FQDN')
-        return jsonify({'error': 'Missing FQDN'}), 400
-
-    record_type = data.get('type', 'A').upper()
-    if record_type not in ('A', 'AAAA'):
-        app.logger.error("Request from %s invalid type: %s", request.remote_addr,
-                         record_type)
-        send_ntfy('Param Error', 'Invalid type')
-        return jsonify({'error': 'Invalid type'}), 400
-
-    ip = data.get('ip')
-    if not ip:
-        ip = request.headers.get('X-Real-Ip')
-    if not ip and 'X-Forwarded-For' in request.headers:
-        ip = request.headers.get('X-Forwarded-For').split(',')[0].strip()
-    if not ip:
-        ip = request.remote_addr
-
-    try:
-        ip_obj = ipaddress.ip_address(ip)
-    except ValueError:
-        app.logger.error("Request from %s invalid ip: %s", request.remote_addr, ip)
-        send_ntfy('Param Error', 'Invalid IP')
-        return jsonify({'error': 'Invalid IP'}), 400
-
-    if record_type == 'A' and ip_obj.version != 4:
-        app.logger.error("Request from %s ip version mismatch: %s", request.remote_addr, ip)
-        send_ntfy('Param Error', 'IP version mismatch')
-        return jsonify({'error': 'IP version mismatch'}), 400
-    if record_type == 'AAAA' and ip_obj.version != 6:
-        app.logger.error("Request from %s ip version mismatch: %s", request.remote_addr, ip)
-        send_ntfy('Param Error', 'IP version mismatch')
-        return jsonify({'error': 'IP version mismatch'}), 400
-
-    domain_parts = url.split('.')
+    domain_parts = fqdn.split('.')
     if len(domain_parts) < 2:
-        app.logger.error("Request from %s invalid fqdn: %s", request.remote_addr, url)
+        app.logger.error("Request from %s invalid fqdn: %s", request.remote_addr, fqdn)
         send_ntfy('Param Error', 'Invalid FQDN')
-        return jsonify({'error': 'Invalid FQDN'}), 400
+        return {'error': 'Invalid FQDN'}, 400
 
     if ALLOWED_ZONES:
         allowed = False
-        fqdn_lower = url.lower()
+        fqdn_lower = fqdn.lower()
         for zone in ALLOWED_ZONES:
             zone_lower = zone.lower()
             if fqdn_lower == zone_lower or fqdn_lower.endswith('.' + zone_lower):
                 allowed = True
                 break
         if not allowed:
-            app.logger.error("Request from %s disallowed domain: %s", request.remote_addr, url)
-            send_ntfy('Domain Not Allowed', url)
-            return jsonify({'error': 'Domain not allowed'}), 403
+            app.logger.error("Request from %s disallowed domain: %s", request.remote_addr, fqdn)
+            send_ntfy('Domain Not Allowed', fqdn)
+            return {'error': 'Domain not allowed'}, 403
 
     zones = get_zones()
     if zones is None:
-        return jsonify({'error': 'Failed to fetch zones'}), 500
+        return {'error': 'Failed to fetch zones'}, 500
 
-    zone_id, zone_name, subdomain = find_zone(url, zones)
+    zone_id, zone_name, subdomain = find_zone(fqdn, zones)
 
     if not zone_id:
-        # maybe cache expired or zone just created - refresh once
         zones = get_zones(force_refresh=True)
         if zones is None:
-            return jsonify({'error': 'Failed to fetch zones'}), 500
-        zone_id, zone_name, subdomain = find_zone(url, zones)
+            return {'error': 'Failed to fetch zones'}, 500
+        zone_id, zone_name, subdomain = find_zone(fqdn, zones)
 
     if not zone_id:
-        app.logger.error("Zone not found for %s from %s", url,
-                         request.remote_addr)
-        send_ntfy('Zone Not Found', f'No matching zone for {url}')
-        return jsonify({'error': 'Zone not found'}), 404
+        app.logger.error("Zone not found for %s from %s", fqdn, request.remote_addr)
+        send_ntfy('Zone Not Found', f'No matching zone for {fqdn}')
+        return {'error': 'Zone not found'}, 404
 
     if ALLOWED_ZONES and zone_name.lower() not in ALLOWED_ZONES:
         app.logger.error("Request from %s disallowed domain: %s", request.remote_addr, zone_name)
         send_ntfy('Domain Not Allowed', zone_name)
-        return jsonify({'error': 'Domain not allowed'}), 403
+        return {'error': 'Domain not allowed'}, 403
 
     if subdomain == '':
-        app.logger.error("Request from %s missing subdomain for %s", request.remote_addr, url)
+        app.logger.error("Request from %s missing subdomain for %s", request.remote_addr, fqdn)
         send_ntfy('Param Error', 'Missing subdomain')
-        return jsonify({'error': 'Missing subdomain'}), 400
+        return {'error': 'Missing subdomain'}, 400
 
     try:
         records_resp = requests.get(
@@ -249,21 +195,26 @@ def update():
             timeout=10,
         )
     except requests.RequestException as exc:
-        app.logger.exception("Records fetch exception for %s from %s", url,
-                             request.remote_addr)
+        app.logger.exception("Records fetch exception for %s from %s", fqdn, request.remote_addr)
         send_ntfy('Records Fetch Error', str(exc))
-        return jsonify({'error': 'Failed to fetch records', 'detail': str(exc)}), 500
+        return {'error': 'Failed to fetch records', 'detail': str(exc)}, 500
     if records_resp.status_code != 200:
-        app.logger.error("Records fetch failed for %s from %s: %s", url,
-                         request.remote_addr, records_resp.text)
+        app.logger.error("Records fetch failed for %s from %s: %s", fqdn, request.remote_addr, records_resp.text)
         send_ntfy('Records Fetch Failed', records_resp.text)
-        return jsonify({'error': 'Failed to fetch records'}), 500
+        return {'error': 'Failed to fetch records'}, 500
 
     record_id = None
+    current_value = None
     for record in records_resp.json().get('records', []):
         if record.get('name') == subdomain and record.get('type') == record_type:
             record_id = record.get('id')
+            current_value = record.get('value')
             break
+
+    if record_id and skip_no_change and current_value == ip:
+        app.logger.info("No change for %s from %s", fqdn, request.remote_addr)
+        send_ntfy('DynDNS Success', f'No change for {fqdn} -> {ip}')
+        return {'status': 'unchanged', 'ip': ip}, 200
 
     payload = {
         'value': ip,
@@ -285,10 +236,9 @@ def update():
                 timeout=10,
             )
         except requests.RequestException as exc:
-            app.logger.exception("Update record exception for %s from %s", url,
-                                 request.remote_addr)
+            app.logger.exception("Update record exception for %s from %s", fqdn, request.remote_addr)
             send_ntfy('Update Record Error', str(exc))
-            return jsonify({'error': 'Failed to update record', 'detail': str(exc)}), 500
+            return {'error': 'Failed to update record', 'detail': str(exc)}, 500
         action = 'Updated'
     else:
         try:
@@ -302,22 +252,119 @@ def update():
                 timeout=10,
             )
         except requests.RequestException as exc:
-            app.logger.exception("Create record exception for %s from %s", url,
-                                 request.remote_addr)
+            app.logger.exception("Create record exception for %s from %s", fqdn, request.remote_addr)
             send_ntfy('Create Record Error', str(exc))
-            return jsonify({'error': 'Failed to create record', 'detail': str(exc)}), 500
+            return {'error': 'Failed to create record', 'detail': str(exc)}, 500
         action = 'Created'
 
     if resp.ok:
-        app.logger.info("%s request from %s for %s -> %s", action.lower(),
-                        request.remote_addr, url, ip)
-        send_ntfy('DynDNS Success', f'{action} {record_type} record for {url} -> {ip}')
-        return jsonify({'status': action.lower(), 'ip': ip}), 200
+        app.logger.info("%s request from %s for %s -> %s", action.lower(), request.remote_addr, fqdn, ip)
+        send_ntfy('DynDNS Success', f'{action} {record_type} record for {fqdn} -> {ip}')
+        return {'status': action.lower(), 'ip': ip}, 200
     else:
-        app.logger.error("Failed to %s record for %s from %s: %s", action.lower(),
-                         url, request.remote_addr, resp.text)
+        app.logger.error("Failed to %s record for %s from %s: %s", action.lower(), fqdn, request.remote_addr, resp.text)
         send_ntfy(f'{action} Failed', resp.text)
-        return jsonify({'error': 'API failure', 'detail': resp.text}), 500
+        return {'error': 'API failure', 'detail': resp.text}, 500
+
+
+@app.route('/update', methods=['POST'])
+def update():
+    if not HETZNER_TOKEN:
+        abort(500, 'Backend not configured')
+
+    auth_ok = False
+    if API_KEY and request.headers.get('X-API-Key') == API_KEY:
+        auth_ok = True
+    if not auth_ok and BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD:
+        auth = request.authorization
+        if auth and auth.username == BASIC_AUTH_USERNAME and auth.password == BASIC_AUTH_PASSWORD:
+            auth_ok = True
+    if not auth_ok:
+        return {'error': 'Unauthorized'}, 401
+
+    data = request.get_json(silent=True) or {}
+    if DEBUG_LOGGING:
+        app.logger.debug("Request JSON: %s", data)
+        headers = dict(request.headers)
+        if 'X-API-Key' in headers:
+            headers['X-API-Key'] = '[REDACTED]'
+        app.logger.debug("Request headers: %s", headers)
+        app.logger.debug("Remote address: %s", request.remote_addr)
+        if 'X-Real-Ip' in request.headers:
+            app.logger.debug("X-Real-Ip: %s", request.headers.get('X-Real-Ip'))
+        if 'X-Forwarded-For' in request.headers:
+            app.logger.debug("X-Forwarded-For: %s", request.headers.get('X-Forwarded-For'))
+    url = data.get('fqdn') or data.get('url')
+    if not url:
+        app.logger.error("Request from %s missing fqdn", request.remote_addr)
+        send_ntfy('Param Error', 'Missing FQDN')
+        return {'error': 'Missing FQDN'}, 400
+
+    record_type = data.get('type', 'A').upper()
+    if record_type not in ('A', 'AAAA'):
+        app.logger.error("Request from %s invalid type: %s", request.remote_addr,
+                         record_type)
+        send_ntfy('Param Error', 'Invalid type')
+        return {'error': 'Invalid type'}, 400
+
+    ip = data.get('ip')
+    if not ip:
+        ip = request.headers.get('X-Real-Ip')
+    if not ip and 'X-Forwarded-For' in request.headers:
+        ip = request.headers.get('X-Forwarded-For').split(',')[0].strip()
+    if not ip:
+        ip = request.remote_addr
+
+    try:
+        ip_obj = ipaddress.ip_address(ip)
+    except ValueError:
+        app.logger.error("Request from %s invalid ip: %s", request.remote_addr, ip)
+        send_ntfy('Param Error', 'Invalid IP')
+        return {'error': 'Invalid IP'}, 400
+
+    if record_type == 'A' and ip_obj.version != 4:
+        app.logger.error("Request from %s ip version mismatch: %s", request.remote_addr, ip)
+        send_ntfy('Param Error', 'IP version mismatch')
+        return {'error': 'IP version mismatch'}, 400
+    if record_type == 'AAAA' and ip_obj.version != 6:
+        app.logger.error("Request from %s ip version mismatch: %s", request.remote_addr, ip)
+        send_ntfy('Param Error', 'IP version mismatch')
+        return {'error': 'IP version mismatch'}, 400
+
+    result, status = perform_update(url, ip, record_type)
+    return jsonify(result), status
+
+
+@app.route('/nic/update', methods=['GET', 'POST'])
+def nic_update():
+    if not HETZNER_TOKEN:
+        abort(500, 'Backend not configured')
+
+    user = None
+    pw = None
+    if request.authorization:
+        user = request.authorization.username
+        pw = request.authorization.password
+    if not user:
+        user = request.args.get('user')
+        pw = request.args.get('pass')
+
+    if not (user == BASIC_AUTH_USERNAME and pw == BASIC_AUTH_PASSWORD):
+        return "badauth", 401
+
+    hostname = request.args.get('hostname') or request.form.get('hostname')
+    ip = request.args.get('myip') or request.form.get('myip')
+    if not ip:
+        ip = request.remote_addr
+
+    record_type = 'AAAA' if ':' in ip else 'A'
+
+    result, status = perform_update(hostname, ip, record_type, skip_no_change=True)
+    if status != 200:
+        return jsonify(result), status
+    if result['status'] == 'unchanged':
+        return f"nochg {result['ip']}", 200
+    return f"good {result['ip']}", 200
 
 
 if __name__ == '__main__':
