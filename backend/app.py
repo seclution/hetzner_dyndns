@@ -26,6 +26,9 @@ BASIC_AUTH_PASSWORD = os.environ.get("BASIC_AUTH_PASSWORD")
 ZONE_CACHE = {"zones": None, "expires": 0}
 ZONE_CACHE_TTL = int(os.environ.get("ZONE_CACHE_TTL", "300"))  # seconds
 
+# Default TTL for created or updated DNS records
+RECORD_TTL = int(os.environ.get("RECORD_TTL", "86400"))
+
 # Pre-shared API key configuration
 API_KEY_FILE = "/pre-shared-key"
 
@@ -263,7 +266,7 @@ def perform_update(
 
     payload = {
         "value": ip,
-        "ttl": 86400,
+        "ttl": RECORD_TTL,
         "type": record_type,
         "name": subdomain,
         "zone_id": zone_id,
