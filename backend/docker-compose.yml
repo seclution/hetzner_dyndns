@@ -10,3 +10,6 @@ services:
       - "8000:80"
     env_file:
       - ./.secrets
+    volumes:
+      # persists the generated API key for sharing with the client
+      - ./pre-shared-key:/pre-shared-key

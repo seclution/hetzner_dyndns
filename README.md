@@ -13,10 +13,15 @@ The repository contains two parts:
    - `HETZNER_TOKEN` – your Hetzner DNS API token
    - `NTFY_URL` – base URL of your NTFY instance
    - `NTFY_TOPIC` – topic name for notifications
-2. In `client/docker-compose.yml` adjust the environment variables:
+2. Mount `./pre-shared-key` into the backend container as shown in
+   `backend/docker-compose.yml`.  The backend will create
+   `./pre-shared-key/key.txt` on first start if it does not exist.
+   Copy the value from this file for the client.
+3. In `client/docker-compose.yml` adjust the environment variables:
    - `BACKEND_URL` – URL of the running backend
    - `FQDN` – fully qualified domain name to update
-3. Start the containers:
+   - `API_KEY` – value from `pre-shared-key/key.txt`
+4. Start the containers:
 
 ```bash
 docker compose -f backend/docker-compose.yml up  # on server side
@@ -62,6 +67,9 @@ The container reads the following variables which should be provided via a
 - `LOG_FILE` – path to the rotating log file (default `app.log`)
 - `LOG_MAX_BYTES` – maximum size of the log file before rotation (default 1048576)
 - `LOG_BACKUP_COUNT` – number of rotated log files to keep (default 3)
+- `API_KEY_FILE` – path to the pre-shared key file used for authentication
+  (default `pre-shared-key/key.txt`). The backend creates the file on first
+  start if it does not exist.
 
 ## Client
 
@@ -82,6 +90,18 @@ The client uses the [`certifi`](https://pypi.org/project/certifi/) package for
 certificate verification.  Set `CA_BUNDLE` to override the bundle path or set
 `VERIFY_SSL=0` to disable verification entirely.
 
+### Environment variables
+
+The client respects these variables:
+
+- `BACKEND_URL` – URL of the backend service
+- `FQDN` – record to update
+- `IP` – optional static IP address
+- `INTERVAL` – update interval in seconds
+- `CA_BUNDLE` – path to custom CA bundle
+- `VERIFY_SSL` – set to `0` to disable certificate verification
+- `API_KEY` – pre-shared key value copied from the backend
+
 ### Cron-based setup
 
 If you don't want to run the Docker client or the Python script continuously,
@@ -92,6 +112,7 @@ Example cron entry using `curl`:
 
 ```cron
 */5 * * * * curl -sf -X POST -H 'Content-Type: application/json' \
+  -H 'X-Api-Key: $(cat pre-shared-key/key.txt)' \
   -d '{"fqdn":"host.example.com"}' https://backend.example.com/update
 ```
 
@@ -115,6 +136,9 @@ docker compose -f backend/docker-compose.yml up
 ```
 The compose file already includes an `env_file` entry pointing to `.secrets`, so
 there is no need to pass it explicitly on the command line.
+Make sure the `pre-shared-key` directory is mounted as shown in the compose
+file so the generated `key.txt` persists. Copy the value for use by the
+client.
 
 Run the client (typically on another host) and point it to your backend:
 
