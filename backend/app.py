@@ -30,6 +30,7 @@ def _load_api_key() -> str:
         try:
             with open(API_KEY_FILE, "w") as f:
                 f.write(key)
+            os.chmod(API_KEY_FILE, 0o600)
         except Exception as exc:  # pragma: no cover - shouldn't happen
             print(f"Failed to write API key: {exc}")
     return key
