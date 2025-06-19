@@ -25,20 +25,18 @@ def _load_api_key() -> str:
         if os.path.exists(API_KEY_FILE):
             with open(API_KEY_FILE, "r") as f:
                 key = f.read().strip()
-    except Exception as exc:  # pragma: no cover - shouldn't happen
-        print(f"Failed to read API key: {exc}")
+    except Exception:  # pragma: no cover - shouldn't happen
+        app.logger.exception("Failed to read API key")
     if not key:
         key = secrets.token_urlsafe(32)
         try:
             with open(API_KEY_FILE, "w") as f:
                 f.write(key)
             os.chmod(API_KEY_FILE, 0o600)
-        except Exception as exc:  # pragma: no cover - shouldn't happen
-            print(f"Failed to write API key: {exc}")
+        except Exception:  # pragma: no cover - shouldn't happen
+            app.logger.exception("Failed to write API key")
     return key
 
-
-API_KEY = _load_api_key()
 
 # Logging configuration
 DEBUG_LOGGING = os.environ.get("DEBUG_LOGGING", "0").lower() in ("1", "true", "yes")
@@ -55,6 +53,8 @@ logging.basicConfig(level=log_level,
                     force=True)
 
 app.logger.setLevel(log_level)
+
+API_KEY = _load_api_key()
 
 
 def send_ntfy(title: str, message: str) -> None:
