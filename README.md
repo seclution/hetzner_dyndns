@@ -13,7 +13,9 @@ endpoint accepts JSON payloads of the form:
 { "fqdn": "host.example.com", "ip": "1.2.3.4" }
 ```
 
-`ip` is optional. If omitted, the source IP of the HTTP request is used. The
+`ip` is optional. If omitted, the backend uses the `X-Real-Ip` header if
+present, then `X-Forwarded-For`, and finally the source IP of the HTTP request.
+The
 service notifies a configured NTFY topic about success or failure.
 Install the requirements with `pip install -r backend/requirements.txt` before running the service directly.
 
