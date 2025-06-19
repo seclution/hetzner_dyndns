@@ -32,8 +32,12 @@ def send_ntfy(title: str, message: str) -> None:
         return
     headers = {"Title": title} if title else {}
     try:
-        requests.post(f"{NTFY_URL}/{NTFY_TOPIC}" if NTFY_TOPIC else NTFY_URL,
-                      headers=headers, data=message)
+        requests.post(
+            f"{NTFY_URL}/{NTFY_TOPIC}" if NTFY_TOPIC else NTFY_URL,
+            headers=headers,
+            data=message,
+            timeout=10,
+        )
     except Exception:
         app.logger.exception("Failed to send ntfy message")
 
@@ -69,8 +73,11 @@ def update():
     domain = '.'.join(domain_parts[-2:])
     subdomain = url[:-len(domain) - 1]
 
-    zones_resp = requests.get('https://dns.hetzner.com/api/v1/zones',
-                              headers={'Auth-API-Token': HETZNER_TOKEN})
+    zones_resp = requests.get(
+        'https://dns.hetzner.com/api/v1/zones',
+        headers={'Auth-API-Token': HETZNER_TOKEN},
+        timeout=10,
+    )
     if zones_resp.status_code != 200:
         app.logger.error("Zone fetch failed for %s from %s: %s", url,
                          request.remote_addr, zones_resp.text)
@@ -91,7 +98,9 @@ def update():
 
     records_resp = requests.get(
         f'https://dns.hetzner.com/api/v1/records?zone_id={zone_id}',
-        headers={'Auth-API-Token': HETZNER_TOKEN})
+        headers={'Auth-API-Token': HETZNER_TOKEN},
+        timeout=10,
+    )
     if records_resp.status_code != 200:
         app.logger.error("Records fetch failed for %s from %s: %s", url,
                          request.remote_addr, records_resp.text)
@@ -115,16 +124,24 @@ def update():
     if record_id:
         resp = requests.put(
             f'https://dns.hetzner.com/api/v1/records/{record_id}',
-            headers={'Auth-API-Token': HETZNER_TOKEN,
-                     'Content-Type': 'application/json'},
-            json=payload)
+            headers={
+                'Auth-API-Token': HETZNER_TOKEN,
+                'Content-Type': 'application/json',
+            },
+            json=payload,
+            timeout=10,
+        )
         action = 'Updated'
     else:
         resp = requests.post(
             'https://dns.hetzner.com/api/v1/records',
-            headers={'Auth-API-Token': HETZNER_TOKEN,
-                     'Content-Type': 'application/json'},
-            json=payload)
+            headers={
+                'Auth-API-Token': HETZNER_TOKEN,
+                'Content-Type': 'application/json',
+            },
+            json=payload,
+            timeout=10,
+        )
         action = 'Created'
 
     if resp.ok:
