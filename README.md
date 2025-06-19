@@ -42,7 +42,9 @@ command‑line arguments.
 
 Separate compose files are provided for the backend and the client. Each
 component comes with its own `Dockerfile` inside the respective
-`backend` and `client` directories.
+`backend` and `client` directories. By default the compose files pull the
+public images `nmbit/hetzner-dyndns-backend` and `nmbit/hetzner-dyndns-client`.
+Uncomment the `build` sections if you want to build the images locally.
 
 Start the backend service:
 
@@ -63,8 +65,8 @@ starting the backend.
 
 ## GitHub Actions
 
-A workflow builds Docker images for the backend and the client and
-pushes them to Docker Hub.  Provide `DOCKERHUB_USERNAME`,
-`DOCKERHUB_TOKEN` and `IMAGE_NAME` (e.g. `<username>/<repo>`) as
-repository secrets to control where the images are published.
+A workflow builds the Docker images from the local Dockerfiles and
+pushes them to Docker Hub. Provide `DOCKERHUB_USERNAME` and
+`DOCKERHUB_TOKEN` as repository secrets so the workflow can publish the
+`nmbit/hetzner-dyndns-backend` and `nmbit/hetzner-dyndns-client` images.
 

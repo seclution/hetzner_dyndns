@@ -1,7 +1,8 @@
 version: '3'
 services:
   client:
-    build: .
+    image: nmbit/hetzner-dyndns-client
+    # build: .
     environment:
       - BACKEND_URL=http://backend:80  # replace with the URL of your backend
       - FQDN=example.yourdomain.tld
