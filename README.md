@@ -60,6 +60,11 @@ The backend authenticates requests using a pre-shared key stored in
 not exist on the first start, the service creates it and writes a random
 token. Use this value for the client's `API_KEY` setting.
 
+When using Docker Compose, make sure the file exists before starting the
+container. Otherwise Docker will create a directory instead of a file for
+the volume which leads to an error similar to "not a directory". An empty
+file can be created with `touch backend/pre-shared-key`.
+
 ### Environment variables
 
 The container reads the following variables which should be provided via a
