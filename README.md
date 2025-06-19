@@ -177,10 +177,10 @@ image to `IMAGE_NAME_CLIENT`.
 
 ## Development
 
-Install the development requirements and run the test suite with `pytest`:
+Install the development requirements and run the test suite with `python -m pytest`:
 
 ```bash
 pip install -r requirements-dev.txt
-pytest
+python -m pytest
 ```
 
