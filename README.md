@@ -15,6 +15,7 @@ endpoint accepts JSON payloads of the form:
 
 `ip` is optional. If omitted, the source IP of the HTTP request is used. The
 service notifies a configured NTFY topic about success or failure.
+Install the requirements with `pip install -r backend/requirements.txt` before running the service directly.
 
 ### Environment variables
 
@@ -34,6 +35,7 @@ The container reads the following variables which should be provided via a
 A small Python script is provided in `client/update_dns.py`.  It sends a request
 to the backend REST API and can be used directly or inside the included client
 container.  Usage:
+Install the requirements with `pip install -r client/requirements.txt` before running the script directly.
 
 ```bash
 python update_dns.py <backend_url> <fqdn> [ip]
