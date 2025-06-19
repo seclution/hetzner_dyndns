@@ -52,6 +52,8 @@ def update():
         app.logger.debug("Request JSON: %s", data)
         app.logger.debug("Request headers: %s", dict(request.headers))
         app.logger.debug("Remote address: %s", request.remote_addr)
+        if 'X-Real-Ip' in request.headers:
+            app.logger.debug("X-Real-Ip: %s", request.headers.get('X-Real-Ip'))
         if 'X-Forwarded-For' in request.headers:
             app.logger.debug("X-Forwarded-For: %s", request.headers.get('X-Forwarded-For'))
     url = data.get('fqdn') or data.get('url')
@@ -61,6 +63,10 @@ def update():
         return jsonify({'error': 'Missing FQDN'}), 400
 
     ip = data.get('ip')
+    if not ip:
+        ip = request.headers.get('X-Real-Ip')
+    if not ip and 'X-Forwarded-For' in request.headers:
+        ip = request.headers.get('X-Forwarded-For').split(',')[0].strip()
     if not ip:
         ip = request.remote_addr
 
