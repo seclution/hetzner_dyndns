@@ -23,7 +23,11 @@ def main():
     backend = os.environ.get('BACKEND_URL')
     fqdn = os.environ.get('FQDN')
     ip = os.environ.get('IP')
-    interval = int(os.environ.get('INTERVAL', '0'))
+    try:
+        interval = int(os.environ.get('INTERVAL', '0'))
+    except (TypeError, ValueError):
+        print("Invalid INTERVAL, defaulting to 0")
+        interval = 0
 
     if len(sys.argv) > 1:
         backend = sys.argv[1]
