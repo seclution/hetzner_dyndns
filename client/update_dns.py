@@ -24,7 +24,7 @@ def get_verify_option():
 
 def main():
     backend = os.environ.get("BACKEND_URL")
-    api_key = os.environ.get("API_KEY")
+    pre_shared_key = os.environ.get("PRE_SHARED_KEY")
     fqdn = os.environ.get("FQDN")
     ip = os.environ.get("IP")
     try:
@@ -40,8 +40,8 @@ def main():
     if len(sys.argv) > 3:
         ip = sys.argv[3]
 
-    if not api_key:
-        print("API_KEY not set")
+    if not pre_shared_key:
+        print("PRE_SHARED_KEY not set")
         sys.exit(1)
 
     if not backend or not fqdn:
@@ -63,7 +63,7 @@ def main():
             resp = requests.post(
                 f"{backend.rstrip('/')}/update",
                 json=payload,
-                headers={"X-API-Key": api_key} if api_key else None,
+                headers={"X-Pre-Shared-Key": pre_shared_key} if pre_shared_key else None,
                 verify=verify,
                 timeout=10,
             )

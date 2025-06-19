@@ -7,7 +7,7 @@ services:
     environment:
       - BACKEND_URL=http://backend:80  # replace with the URL of your backend
       - FQDN=example.yourdomain.tld
-      - API_KEY=
+      - PRE_SHARED_KEY=
       # - IP=1.2.3.4  # optional static IP variant
       # update interval in seconds
       - INTERVAL=3600
