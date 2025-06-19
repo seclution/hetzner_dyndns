@@ -76,6 +76,7 @@ The container reads the following variables which should be provided via a
 - `ALLOWED_ZONES` – comma-separated list of domain zones allowed for updates
   (empty means all zones are allowed)
 - `BASIC_AUTH_USERNAME` / `BASIC_AUTH_PASSWORD` – enable HTTP basic auth for the update endpoints
+- `RECORD_TTL` – TTL of DNS records in seconds (default `86400`)
 
 ## Client
 
