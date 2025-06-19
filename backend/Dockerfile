@@ -7,7 +7,7 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir gunicorn
-COPY . ./
+COPY app.py ./
 
 # ensure pre-shared-key exists with restricted permissions
 RUN touch /pre-shared-key \
