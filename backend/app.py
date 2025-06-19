@@ -112,27 +112,26 @@ def get_zones(force_refresh: bool = False):
 
 
 def find_zone(fqdn: str, zones):
-    zone_id = None
-    zone_name = None
-    subdomain = None
-    longest = 0
-    fqdn_lower = fqdn.lower()
-    for zone in zones:
-        name = zone.get("name", "")
-        lower_name = name.lower()
-        if fqdn_lower == lower_name:
-            if len(name) > longest:
-                zone_id = zone.get("id")
-                zone_name = name
-                subdomain = ""
-                longest = len(name)
-        elif fqdn_lower.endswith("." + lower_name):
-            if len(name) > longest:
-                zone_id = zone.get("id")
-                zone_name = name
-                subdomain = fqdn[: -len(name) - 1]
-                longest = len(name)
-    return zone_id, zone_name, subdomain
+    """Return zone id, zone name and subdomain for *fqdn*.
+
+    Instead of iterating linearly over ``zones`` for every lookup, build a
+    mapping of zone names to their objects and check suffixes of ``fqdn`` from
+    longest to shortest.  This reduces the amount of work when the list of
+    zones becomes large.
+    """
+
+    zone_map = {z.get("name", "").lower(): z for z in zones}
+    parts = fqdn.split(".")
+    for i in range(len(parts)):
+        suffix = ".".join(parts[i:]).lower()
+        if suffix in zone_map:
+            zone = zone_map[suffix]
+            zone_id = zone.get("id")
+            zone_name = zone.get("name")
+            subdomain = ".".join(parts[:i]) if i > 0 else ""
+            return zone_id, zone_name, subdomain
+
+    return None, None, None
 
 
 def send_ntfy(title: str, message: str) -> None:
