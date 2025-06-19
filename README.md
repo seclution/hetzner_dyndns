@@ -24,7 +24,6 @@ The repository contains two parts:
 3. In `client/docker-compose.yml` adjust the environment variables:
    - `BACKEND_URL` – URL of the running backend
    - `FQDN` – fully qualified domain name to update
-3. Start the containers:
    - `PRE_SHARED_KEY` – value from `backend/pre-shared-key` (created on first backend start)
 4. Start the containers:
 
