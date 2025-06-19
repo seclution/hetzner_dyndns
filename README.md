@@ -75,6 +75,7 @@ The container reads the following variables which should be provided via a
 - `LISTEN_PORT` – port the application listens on (default `80`)
 - `ALLOWED_ZONES` – comma-separated list of domain zones allowed for updates
   (empty means all zones are allowed)
+- `BASIC_AUTH_USERNAME` / `BASIC_AUTH_PASSWORD` – enable HTTP basic auth for the update endpoints
 
 ## Client
 
@@ -124,6 +125,15 @@ Replace the URL and `fqdn` with your values. The backend will use the IP address
 of the HTTP request if no `ip` field is supplied. This method is lightweight but
 lacks the built-in logging and isolated environment that the Docker client
 provides.
+
+### Router setup
+
+Many consumer routers support custom DynDNS services using the dyndns2 protocol.
+Point them to your backend's `/nic/update` endpoint. Example URLs:
+
+- **Fritz!Box** – `https://user:pass@your-backend.example.com/nic/update?hostname=host.example.com`
+- **Speedport** – `https://your-backend.example.com/nic/update?hostname=host.example.com&user=user&pass=pass`
+- **Vodafone Station** – `https://user:pass@your-backend.example.com/nic/update?hostname=host.example.com&myip=%IP%`
 
 ## Docker Compose
 

@@ -263,3 +263,94 @@ def test_root_domain_rejected(monkeypatch):
         headers={"X-API-Key": "test"},
     )
     assert resp.status_code == 400
+
+
+def test_basic_auth(monkeypatch):
+    monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
+    monkeypatch.setattr(backend_app, "API_KEY", "test")
+    monkeypatch.setattr(backend_app, "BASIC_AUTH_USERNAME", "u")
+    monkeypatch.setattr(backend_app, "BASIC_AUTH_PASSWORD", "p")
+    monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
+    monkeypatch.setattr(backend_app, "ZONE_CACHE", {"zones": None, "expires": 0})
+
+    def mock_get(url, headers=None, **kwargs):
+        if url.endswith("/zones"):
+            return DummyResp({"zones": [{"id": "z1", "name": "example.com"}]})
+        elif url.startswith("https://dns.hetzner.com/api/v1/records"):
+            return DummyResp({"records": []})
+        raise AssertionError("unexpected GET " + url)
+
+    def mock_post(url, headers=None, json=None, **kwargs):
+        return DummyResp({"record": {"id": "r1"}})
+
+    monkeypatch.setattr(backend_app.requests, "get", mock_get)
+    monkeypatch.setattr(backend_app.requests, "post", mock_post)
+
+    import base64
+    cred = base64.b64encode(b"u:p").decode()
+    client = backend_app.app.test_client()
+    resp = client.post(
+        "/update",
+        json={"fqdn": "host.example.com", "ip": "1.2.3.4"},
+        headers={"Authorization": f"Basic {cred}"},
+    )
+    assert resp.status_code == 200
+
+
+def test_nic_update(monkeypatch):
+    monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
+    monkeypatch.setattr(backend_app, "BASIC_AUTH_USERNAME", "u")
+    monkeypatch.setattr(backend_app, "BASIC_AUTH_PASSWORD", "p")
+    monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
+    monkeypatch.setattr(backend_app, "ZONE_CACHE", {"zones": None, "expires": 0})
+
+    def mock_get(url, headers=None, **kwargs):
+        if url.endswith("/zones"):
+            return DummyResp({"zones": [{"id": "z1", "name": "example.com"}]})
+        elif url.startswith("https://dns.hetzner.com/api/v1/records"):
+            return DummyResp({"records": []})
+        raise AssertionError("unexpected GET " + url)
+
+    def mock_post(url, headers=None, json=None, **kwargs):
+        return DummyResp({"record": {"id": "r1"}})
+
+    monkeypatch.setattr(backend_app.requests, "get", mock_get)
+    monkeypatch.setattr(backend_app.requests, "post", mock_post)
+
+    import base64
+    cred = base64.b64encode(b"u:p").decode()
+    client = backend_app.app.test_client()
+    resp = client.get(
+        "/nic/update?hostname=host.example.com&myip=1.2.3.4",
+        headers={"Authorization": f"Basic {cred}"},
+    )
+    assert resp.status_code == 200
+    assert resp.data.decode().startswith("good ")
+
+
+def test_nic_update_query_auth(monkeypatch):
+    monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
+    monkeypatch.setattr(backend_app, "BASIC_AUTH_USERNAME", "u")
+    monkeypatch.setattr(backend_app, "BASIC_AUTH_PASSWORD", "p")
+    monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
+    monkeypatch.setattr(backend_app, "ZONE_CACHE", {"zones": None, "expires": 0})
+
+    def mock_get(url, headers=None, **kwargs):
+        if url.endswith("/zones"):
+            return DummyResp({"zones": [{"id": "z1", "name": "example.com"}]})
+        elif url.startswith("https://dns.hetzner.com/api/v1/records"):
+            return DummyResp({"records": []})
+        raise AssertionError("unexpected GET " + url)
+
+    def mock_post(url, headers=None, json=None, **kwargs):
+        return DummyResp({"record": {"id": "r1"}})
+
+    monkeypatch.setattr(backend_app.requests, "get", mock_get)
+    monkeypatch.setattr(backend_app.requests, "post", mock_post)
+
+    client = backend_app.app.test_client()
+    resp = client.get(
+        "/nic/update?hostname=host.example.com&myip=1.2.3.4&user=u&pass=p",
+    )
+    assert resp.status_code == 200
+    assert resp.data.decode().startswith("good ")
