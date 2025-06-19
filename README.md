@@ -14,11 +14,19 @@ The repository contains two parts:
    - `HETZNER_TOKEN` – your Hetzner DNS API token
    - `NTFY_URL` – base URL of your NTFY instance
    - `NTFY_TOPIC` – topic name for notifications
-2. In `client/docker-compose.yml` adjust the environment variables:
+2. Create a writable `backend/pre-shared-key` file for the container:
+
+   ```bash
+   touch backend/pre-shared-key
+   sudo chown 1000:1000 backend/pre-shared-key
+   chmod 600 backend/pre-shared-key
+   ```
+3. In `client/docker-compose.yml` adjust the environment variables:
    - `BACKEND_URL` – URL of the running backend
    - `FQDN` – fully qualified domain name to update
-   - `PRE_SHARED_KEY` – value from `backend/pre-shared-key` (created on first backend start)
 3. Start the containers:
+   - `PRE_SHARED_KEY` – value from `backend/pre-shared-key` (created on first backend start)
+4. Start the containers:
 
 ```bash
 docker compose -f backend/docker-compose.yml up  # on server side
@@ -60,10 +68,16 @@ The backend authenticates requests using a pre-shared key stored in
 not exist on the first start, the service creates it and writes a random
 token. Use this value for the client's `PRE_SHARED_KEY` setting.
 
-When using Docker Compose, make sure the file exists before starting the
-container. Otherwise Docker will create a directory instead of a file for
-the volume which leads to an error similar to "not a directory". An empty
-file can be created with `touch backend/pre-shared-key`.
+When using Docker Compose, make sure the file exists and is writable by the
+container user. Otherwise Docker may create a directory instead of a file and
+the service fails with a permission error. Create the file and set the
+permissions like so:
+
+```bash
+touch backend/pre-shared-key
+sudo chown 1000:1000 backend/pre-shared-key
+chmod 600 backend/pre-shared-key
+```
 
 ### Environment variables
 
