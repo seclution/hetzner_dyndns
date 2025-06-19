@@ -19,7 +19,8 @@ BASIC_AUTH_USERNAME = os.environ.get("BASIC_AUTH_USERNAME")
 BASIC_AUTH_PASSWORD = os.environ.get("BASIC_AUTH_PASSWORD")
 
 # Cache for zone information to reduce API calls
-ZONE_CACHE = {"zones": None, "expires": 0}
+# Cache now also stores a mapping from zone name to zone data to speed up lookups
+ZONE_CACHE = {"zones": None, "expires": 0, "zone_map": None}
 ZONE_CACHE_TTL = int(os.environ.get("ZONE_CACHE_TTL", "300"))  # seconds
 
 # Pre-shared API key configuration
@@ -92,32 +93,31 @@ def get_zones(force_refresh: bool = False):
         return None
 
     zones = resp.json().get('zones', [])
-    ZONE_CACHE.update({'zones': zones, 'expires': now + ZONE_CACHE_TTL})
+    zone_map = {z.get('name', '').lower(): z for z in zones}
+    ZONE_CACHE.update({'zones': zones, 'expires': now + ZONE_CACHE_TTL,
+                       'zone_map': zone_map})
     return zones
 
 
 def find_zone(fqdn: str, zones):
-    zone_id = None
-    zone_name = None
-    subdomain = None
-    longest = 0
+    """Return zone information matching fqdn using cached lookup table."""
+    zone_map = ZONE_CACHE.get('zone_map')
+    if zone_map is None:
+        zone_map = {z.get('name', '').lower(): z for z in zones}
+        ZONE_CACHE['zone_map'] = zone_map
+
     fqdn_lower = fqdn.lower()
-    for zone in zones:
-        name = zone.get('name', '')
-        lower_name = name.lower()
-        if fqdn_lower == lower_name:
-            if len(name) > longest:
-                zone_id = zone.get('id')
-                zone_name = name
-                subdomain = ''
-                longest = len(name)
-        elif fqdn_lower.endswith('.' + lower_name):
-            if len(name) > longest:
-                zone_id = zone.get('id')
-                zone_name = name
-                subdomain = fqdn[:-len(name) - 1]
-                longest = len(name)
-    return zone_id, zone_name, subdomain
+    parts = fqdn_lower.split('.')
+    for i in range(len(parts)):
+        candidate = '.'.join(parts[i:])
+        zone = zone_map.get(candidate)
+        if zone:
+            zone_id = zone.get('id')
+            zone_name = zone.get('name')
+            subdomain = '' if candidate == fqdn_lower else fqdn[:-len(zone_name) - 1]
+            return zone_id, zone_name, subdomain
+
+    return None, None, None
 
 
 def send_ntfy(title: str, message: str) -> None:
