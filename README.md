@@ -24,6 +24,10 @@ The container reads the following variables which should be provided via a
 - `HETZNER_TOKEN` – API token for the Hetzner DNS API
 - `NTFY_URL` – Base URL of your NTFY instance
 - `NTFY_TOPIC` – Topic name used for notifications
+- `DEBUG_LOGGING` – set to `1` to enable verbose debug logs (default `0`)
+- `LOG_FILE` – path to the rotating log file (default `app.log`)
+- `LOG_MAX_BYTES` – maximum size of the log file before rotation (default 1048576)
+- `LOG_BACKUP_COUNT` – number of rotated log files to keep (default 3)
 
 ## Client
 
