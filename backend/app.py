@@ -5,6 +5,7 @@ from flask import Flask, request, jsonify, abort
 import requests
 import secrets
 import ipaddress
+import time
 
 app = Flask(__name__)
 
@@ -14,6 +15,10 @@ NTFY_TOPIC = os.environ.get("NTFY_TOPIC")
 NTFY_USERNAME = os.environ.get("NTFY_USERNAME")
 NTFY_PASSWORD = os.environ.get("NTFY_PASSWORD")
 ALLOWED_ZONES = [z.strip().lower() for z in os.environ.get("ALLOWED_ZONES", "").split(',') if z.strip()]
+
+# Cache for zone information to reduce API calls
+ZONE_CACHE = {"zones": None, "expires": 0}
+ZONE_CACHE_TTL = int(os.environ.get("ZONE_CACHE_TTL", "300"))  # seconds
 
 # Pre-shared API key configuration
 API_KEY_FILE = "/pre-shared-key"
@@ -55,6 +60,62 @@ logging.basicConfig(level=log_level,
 app.logger.setLevel(log_level)
 
 API_KEY = _load_api_key()
+
+
+def get_zones(force_refresh: bool = False):
+    """Return list of zones using a simple in-memory cache."""
+    now = time.time()
+    if not force_refresh and ZONE_CACHE["zones"] is not None and now < ZONE_CACHE["expires"]:
+        return ZONE_CACHE["zones"]
+
+    try:
+        resp = requests.get(
+            'https://dns.hetzner.com/api/v1/zones',
+            headers={'Auth-API-Token': HETZNER_TOKEN},
+            timeout=10,
+        )
+    except requests.RequestException as exc:
+        app.logger.exception("Zone fetch exception")
+        send_ntfy('Zone Fetch Error', str(exc))
+        # If we have cached zones, return them even on failure
+        if ZONE_CACHE["zones"] is not None:
+            return ZONE_CACHE["zones"]
+        return None
+
+    if resp.status_code != 200:
+        app.logger.error("Zone fetch failed: %s", resp.text)
+        send_ntfy('Zone Fetch Failed', resp.text)
+        if ZONE_CACHE["zones"] is not None:
+            return ZONE_CACHE["zones"]
+        return None
+
+    zones = resp.json().get('zones', [])
+    ZONE_CACHE.update({'zones': zones, 'expires': now + ZONE_CACHE_TTL})
+    return zones
+
+
+def find_zone(fqdn: str, zones):
+    zone_id = None
+    zone_name = None
+    subdomain = None
+    longest = 0
+    fqdn_lower = fqdn.lower()
+    for zone in zones:
+        name = zone.get('name', '')
+        lower_name = name.lower()
+        if fqdn_lower == lower_name:
+            if len(name) > longest:
+                zone_id = zone.get('id')
+                zone_name = name
+                subdomain = ''
+                longest = len(name)
+        elif fqdn_lower.endswith('.' + lower_name):
+            if len(name) > longest:
+                zone_id = zone.get('id')
+                zone_name = name
+                subdomain = fqdn[:-len(name) - 1]
+                longest = len(name)
+    return zone_id, zone_name, subdomain
 
 
 def send_ntfy(title: str, message: str) -> None:
@@ -152,43 +213,18 @@ def update():
             send_ntfy('Domain Not Allowed', url)
             return jsonify({'error': 'Domain not allowed'}), 403
 
-    try:
-        zones_resp = requests.get(
-            'https://dns.hetzner.com/api/v1/zones',
-            headers={'Auth-API-Token': HETZNER_TOKEN},
-            timeout=10,
-        )
-    except requests.RequestException as exc:
-        app.logger.exception("Zone fetch exception for %s from %s", url,
-                             request.remote_addr)
-        send_ntfy('Zone Fetch Error', str(exc))
-        return jsonify({'error': 'Failed to fetch zones', 'detail': str(exc)}), 500
-    if zones_resp.status_code != 200:
-        app.logger.error("Zone fetch failed for %s from %s: %s", url,
-                         request.remote_addr, zones_resp.text)
-        send_ntfy('Zone Fetch Failed', zones_resp.text)
+    zones = get_zones()
+    if zones is None:
         return jsonify({'error': 'Failed to fetch zones'}), 500
 
-    zone_id = None
-    zone_name = None
-    subdomain = None
-    longest = 0
-    fqdn_lower = url.lower()
-    for zone in zones_resp.json().get('zones', []):
-        name = zone.get('name', '')
-        lower_name = name.lower()
-        if fqdn_lower == lower_name:
-            if len(name) > longest:
-                zone_id = zone.get('id')
-                zone_name = name
-                subdomain = ''
-                longest = len(name)
-        elif fqdn_lower.endswith('.' + lower_name):
-            if len(name) > longest:
-                zone_id = zone.get('id')
-                zone_name = name
-                subdomain = url[:-len(name) - 1]
-                longest = len(name)
+    zone_id, zone_name, subdomain = find_zone(url, zones)
+
+    if not zone_id:
+        # maybe cache expired or zone just created - refresh once
+        zones = get_zones(force_refresh=True)
+        if zones is None:
+            return jsonify({'error': 'Failed to fetch zones'}), 500
+        zone_id, zone_name, subdomain = find_zone(url, zones)
 
     if not zone_id:
         app.logger.error("Zone not found for %s from %s", url,
