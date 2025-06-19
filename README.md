@@ -1,5 +1,33 @@
 # Hetzner DynDNS
 
+## TL;DR Quickstart
+
+The repository contains two parts:
+
+- **backend** – small Flask service that updates Hetzner DNS records.
+- **client** – optional container/script calling the backend from the host whose
+  IP should be used.
+
+1. Copy [`.secrets.example`](.secrets.example) to `.secrets` and fill in at
+   least these variables:
+   - `HETZNER_TOKEN` – your Hetzner DNS API token
+   - `NTFY_URL` – base URL of your NTFY instance
+   - `NTFY_TOPIC` – topic name for notifications
+2. In `client/docker-compose.yml` adjust the environment variables:
+   - `BACKEND_URL` – URL of the running backend
+   - `FQDN` – fully qualified domain name to update
+3. Start the containers:
+
+```bash
+docker compose -f backend/docker-compose.yml up
+docker compose -f client/docker-compose.yml up  # optional
+```
+
+Compose files live in [`backend/docker-compose.yml`](backend/docker-compose.yml)
+and [`client/docker-compose.yml`](client/docker-compose.yml).
+
+---
+
 This project provides a lightweight REST API for updating Hetzner DNS A records.
 It consists of a backend service that communicates with the Hetzner DNS API and
 an optional client that can be run on remote systems to trigger updates.
