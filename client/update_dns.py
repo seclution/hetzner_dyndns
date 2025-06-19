@@ -42,8 +42,8 @@ def main():
 
 
     while True:
-    verify = get_verify_option()
-    resp = requests.post(f"{backend.rstrip('/')}/update", json=payload, verify=verify)
+        verify = get_verify_option()
+        resp = requests.post(f"{backend.rstrip('/')}/update", json=payload, verify=verify)
         if interval <= 0:
             break
         time.sleep(interval)
