@@ -75,6 +75,7 @@ The container reads the following variables which should be provided via a
 - `LISTEN_PORT` – port the application listens on (default `80`)
 - `ALLOWED_ZONES` – comma-separated list of domain zones allowed for updates
   (empty means all zones are allowed)
+- `RECORD_TTL` – TTL for DNS records in seconds (default `86400`)
 - `BASIC_AUTH_USERNAME` / `BASIC_AUTH_PASSWORD` – enable HTTP basic auth for the update endpoints
 
 ## Client
