@@ -1,6 +1,11 @@
-import os, sys; sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+import os, sys
+
+sys.path.insert(
+    0, os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+)
 from backend import app as backend_app
 import json
+
 
 class DummyResp:
     def __init__(self, json_data, status_code=200):
@@ -8,6 +13,7 @@ class DummyResp:
         self.status_code = status_code
         self.ok = status_code == 200
         self.text = json.dumps(json_data)
+
     def json(self):
         return self._json
 
@@ -15,7 +21,9 @@ class DummyResp:
 def test_update_requires_api_key(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
     monkeypatch.setattr(backend_app, "API_KEY", "test")
-    monkeypatch.setattr(backend_app, "ZONE_CACHE", {"zones": None, "expires": 0})
+    monkeypatch.setattr(
+        backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
+    )
     client = backend_app.app.test_client()
     resp = client.post("/update", json={"fqdn": "host.example.com"})
     assert resp.status_code == 401
@@ -25,7 +33,9 @@ def test_update_creates_record(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
     monkeypatch.setattr(backend_app, "API_KEY", "test")
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
-    monkeypatch.setattr(backend_app, "ZONE_CACHE", {"zones": None, "expires": 0})
+    monkeypatch.setattr(
+        backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
+    )
 
     def mock_get(url, headers=None, **kwargs):
         if url.endswith("/zones"):
@@ -55,8 +65,14 @@ def test_update_request_exception(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
     monkeypatch.setattr(backend_app, "API_KEY", "test")
     called = {}
-    monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: called.setdefault('ntfy', True))
-    monkeypatch.setattr(backend_app, "ZONE_CACHE", {"zones": None, "expires": 0})
+    monkeypatch.setattr(
+        backend_app,
+        "send_ntfy",
+        lambda *a, **k: called.setdefault("ntfy", True),
+    )
+    monkeypatch.setattr(
+        backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
+    )
 
     def mock_get(*args, **kwargs):
         raise backend_app.requests.RequestException("boom")
@@ -72,20 +88,24 @@ def test_update_request_exception(monkeypatch):
     assert resp.status_code == 500
     data = resp.get_json()
     assert "error" in data
-    assert called.get('ntfy') is True
+    assert called.get("ntfy") is True
 
 
 def test_update_updates_record(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
     monkeypatch.setattr(backend_app, "API_KEY", "test")
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
-    monkeypatch.setattr(backend_app, "ZONE_CACHE", {"zones": None, "expires": 0})
+    monkeypatch.setattr(
+        backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
+    )
 
     def mock_get(url, headers=None, **kwargs):
         if url.endswith("/zones"):
             return DummyResp({"zones": [{"id": "z1", "name": "example.com"}]})
         elif url.startswith("https://dns.hetzner.com/api/v1/records"):
-            return DummyResp({"records": [{"id": "r1", "name": "host", "type": "A"}]})
+            return DummyResp(
+                {"records": [{"id": "r1", "name": "host", "type": "A"}]}
+            )
         raise AssertionError("unexpected GET " + url)
 
     def mock_put(url, headers=None, json=None, **kwargs):
@@ -109,8 +129,14 @@ def test_update_api_failure(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
     monkeypatch.setattr(backend_app, "API_KEY", "test")
     called = {}
-    monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: called.setdefault('ntfy', True))
-    monkeypatch.setattr(backend_app, "ZONE_CACHE", {"zones": None, "expires": 0})
+    monkeypatch.setattr(
+        backend_app,
+        "send_ntfy",
+        lambda *a, **k: called.setdefault("ntfy", True),
+    )
+    monkeypatch.setattr(
+        backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
+    )
 
     def mock_get(url, headers=None, **kwargs):
         if url.endswith("/zones"):
@@ -136,13 +162,15 @@ def test_update_api_failure(monkeypatch):
     data = resp.get_json()
     assert data.get("error") == "API failure"
     assert "fail" in data.get("detail")
-    assert called.get('ntfy') is True
+    assert called.get("ntfy") is True
 
 
 def test_invalid_ip(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
     monkeypatch.setattr(backend_app, "API_KEY", "test")
-    monkeypatch.setattr(backend_app, "ZONE_CACHE", {"zones": None, "expires": 0})
+    monkeypatch.setattr(
+        backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
+    )
     client = backend_app.app.test_client()
     resp = client.post(
         "/update",
@@ -156,7 +184,9 @@ def test_ipv6_record(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
     monkeypatch.setattr(backend_app, "API_KEY", "test")
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
-    monkeypatch.setattr(backend_app, "ZONE_CACHE", {"zones": None, "expires": 0})
+    monkeypatch.setattr(
+        backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
+    )
 
     def mock_get(url, headers=None, **kwargs):
         if url.endswith("/zones"):
@@ -185,7 +215,9 @@ def test_ipv6_record(monkeypatch):
 def test_ip_version_mismatch(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
     monkeypatch.setattr(backend_app, "API_KEY", "test")
-    monkeypatch.setattr(backend_app, "ZONE_CACHE", {"zones": None, "expires": 0})
+    monkeypatch.setattr(
+        backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
+    )
     client = backend_app.app.test_client()
     resp = client.post(
         "/update",
@@ -199,7 +231,9 @@ def test_disallowed_domain(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
     monkeypatch.setattr(backend_app, "API_KEY", "test")
     monkeypatch.setattr(backend_app, "ALLOWED_ZONES", ["example.com"])
-    monkeypatch.setattr(backend_app, "ZONE_CACHE", {"zones": None, "expires": 0})
+    monkeypatch.setattr(
+        backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
+    )
 
     client = backend_app.app.test_client()
     resp = client.post(
@@ -214,15 +248,23 @@ def test_update_multi_level_zone(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
     monkeypatch.setattr(backend_app, "API_KEY", "test")
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
-    monkeypatch.setattr(backend_app, "ZONE_CACHE", {"zones": None, "expires": 0})
+    monkeypatch.setattr(
+        backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
+    )
 
     def mock_get(url, headers=None, **kwargs):
         if url.endswith("/zones"):
-            return DummyResp({"zones": [
-                {"id": "z1", "name": "example.com"},
-                {"id": "z2", "name": "example.co.uk"},
-            ]})
-        elif url.startswith("https://dns.hetzner.com/api/v1/records?zone_id=z2"):
+            return DummyResp(
+                {
+                    "zones": [
+                        {"id": "z1", "name": "example.com"},
+                        {"id": "z2", "name": "example.co.uk"},
+                    ]
+                }
+            )
+        elif url.startswith(
+            "https://dns.hetzner.com/api/v1/records?zone_id=z2"
+        ):
             return DummyResp({"records": []})
         raise AssertionError("unexpected GET " + url)
 
@@ -271,7 +313,9 @@ def test_basic_auth(monkeypatch):
     monkeypatch.setattr(backend_app, "BASIC_AUTH_USERNAME", "u")
     monkeypatch.setattr(backend_app, "BASIC_AUTH_PASSWORD", "p")
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
-    monkeypatch.setattr(backend_app, "ZONE_CACHE", {"zones": None, "expires": 0})
+    monkeypatch.setattr(
+        backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
+    )
 
     def mock_get(url, headers=None, **kwargs):
         if url.endswith("/zones"):
@@ -287,6 +331,7 @@ def test_basic_auth(monkeypatch):
     monkeypatch.setattr(backend_app.requests, "post", mock_post)
 
     import base64
+
     cred = base64.b64encode(b"u:p").decode()
     client = backend_app.app.test_client()
     resp = client.post(
@@ -302,7 +347,9 @@ def test_nic_update(monkeypatch):
     monkeypatch.setattr(backend_app, "BASIC_AUTH_USERNAME", "u")
     monkeypatch.setattr(backend_app, "BASIC_AUTH_PASSWORD", "p")
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
-    monkeypatch.setattr(backend_app, "ZONE_CACHE", {"zones": None, "expires": 0})
+    monkeypatch.setattr(
+        backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
+    )
 
     def mock_get(url, headers=None, **kwargs):
         if url.endswith("/zones"):
@@ -318,6 +365,7 @@ def test_nic_update(monkeypatch):
     monkeypatch.setattr(backend_app.requests, "post", mock_post)
 
     import base64
+
     cred = base64.b64encode(b"u:p").decode()
     client = backend_app.app.test_client()
     resp = client.get(
@@ -333,7 +381,9 @@ def test_nic_update_query_auth(monkeypatch):
     monkeypatch.setattr(backend_app, "BASIC_AUTH_USERNAME", "u")
     monkeypatch.setattr(backend_app, "BASIC_AUTH_PASSWORD", "p")
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
-    monkeypatch.setattr(backend_app, "ZONE_CACHE", {"zones": None, "expires": 0})
+    monkeypatch.setattr(
+        backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
+    )
 
     def mock_get(url, headers=None, **kwargs):
         if url.endswith("/zones"):

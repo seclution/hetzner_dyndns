@@ -1,4 +1,8 @@
-import os, sys; sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+import os, sys
+
+sys.path.insert(
+    0, os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+)
 from client import update_dns
 import pytest
 import requests
@@ -19,10 +23,12 @@ def test_get_verify_option_disable_verify(monkeypatch):
 def test_get_verify_option_certifi(monkeypatch):
     monkeypatch.delenv("CA_BUNDLE", raising=False)
     monkeypatch.delenv("VERIFY_SSL", raising=False)
+
     class DummyCert:
         @staticmethod
         def where():
             return "certifi/path"
+
     monkeypatch.setattr(update_dns, "certifi", DummyCert)
     assert update_dns.get_verify_option() == "certifi/path"
 
@@ -90,7 +96,9 @@ def test_update_dns_non_2xx(monkeypatch, capsys):
             self.status_code = 500
             self.text = "fail"
 
-    monkeypatch.setattr(update_dns.requests, "post", lambda *a, **k: DummyResp())
+    monkeypatch.setattr(
+        update_dns.requests, "post", lambda *a, **k: DummyResp()
+    )
     monkeypatch.setattr(update_dns, "get_verify_option", lambda: True)
     monkeypatch.setattr(sys, "argv", ["update_dns.py"], raising=False)
 
