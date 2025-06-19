@@ -34,3 +34,21 @@ def test_update_creates_record(monkeypatch):
     resp = client.post("/update", json={"fqdn": "host.example.com", "ip": "1.2.3.4"})
     assert resp.status_code == 200
     assert resp.get_json() == {"status": "created", "ip": "1.2.3.4"}
+
+
+def test_update_request_exception(monkeypatch):
+    monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
+    called = {}
+    monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: called.setdefault('ntfy', True))
+
+    def mock_get(*args, **kwargs):
+        raise backend_app.requests.RequestException("boom")
+
+    monkeypatch.setattr(backend_app.requests, "get", mock_get)
+
+    client = backend_app.app.test_client()
+    resp = client.post("/update", json={"fqdn": "host.example.com"})
+    assert resp.status_code == 500
+    data = resp.get_json()
+    assert "error" in data
+    assert called.get('ntfy') is True

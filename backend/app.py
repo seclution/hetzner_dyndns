@@ -44,7 +44,7 @@ def send_ntfy(title: str, message: str) -> None:
             auth=auth,
             timeout=10,
         )
-    except Exception:
+    except requests.RequestException:
         app.logger.exception("Failed to send ntfy message")
 
 
@@ -85,11 +85,17 @@ def update():
     domain = '.'.join(domain_parts[-2:])
     subdomain = url[:-len(domain) - 1]
 
-    zones_resp = requests.get(
-        'https://dns.hetzner.com/api/v1/zones',
-        headers={'Auth-API-Token': HETZNER_TOKEN},
-        timeout=10,
-    )
+    try:
+        zones_resp = requests.get(
+            'https://dns.hetzner.com/api/v1/zones',
+            headers={'Auth-API-Token': HETZNER_TOKEN},
+            timeout=10,
+        )
+    except requests.RequestException as exc:
+        app.logger.exception("Zone fetch exception for %s from %s", url,
+                             request.remote_addr)
+        send_ntfy('Zone Fetch Error', str(exc))
+        return jsonify({'error': 'Failed to fetch zones', 'detail': str(exc)}), 500
     if zones_resp.status_code != 200:
         app.logger.error("Zone fetch failed for %s from %s: %s", url,
                          request.remote_addr, zones_resp.text)
@@ -108,11 +114,17 @@ def update():
         send_ntfy('Zone Not Found', f'No matching zone for {domain}')
         return jsonify({'error': 'Zone not found'}), 404
 
-    records_resp = requests.get(
-        f'https://dns.hetzner.com/api/v1/records?zone_id={zone_id}',
-        headers={'Auth-API-Token': HETZNER_TOKEN},
-        timeout=10,
-    )
+    try:
+        records_resp = requests.get(
+            f'https://dns.hetzner.com/api/v1/records?zone_id={zone_id}',
+            headers={'Auth-API-Token': HETZNER_TOKEN},
+            timeout=10,
+        )
+    except requests.RequestException as exc:
+        app.logger.exception("Records fetch exception for %s from %s", url,
+                             request.remote_addr)
+        send_ntfy('Records Fetch Error', str(exc))
+        return jsonify({'error': 'Failed to fetch records', 'detail': str(exc)}), 500
     if records_resp.status_code != 200:
         app.logger.error("Records fetch failed for %s from %s: %s", url,
                          request.remote_addr, records_resp.text)
@@ -134,26 +146,38 @@ def update():
     }
 
     if record_id:
-        resp = requests.put(
-            f'https://dns.hetzner.com/api/v1/records/{record_id}',
-            headers={
-                'Auth-API-Token': HETZNER_TOKEN,
-                'Content-Type': 'application/json',
-            },
-            json=payload,
-            timeout=10,
-        )
+        try:
+            resp = requests.put(
+                f'https://dns.hetzner.com/api/v1/records/{record_id}',
+                headers={
+                    'Auth-API-Token': HETZNER_TOKEN,
+                    'Content-Type': 'application/json',
+                },
+                json=payload,
+                timeout=10,
+            )
+        except requests.RequestException as exc:
+            app.logger.exception("Update record exception for %s from %s", url,
+                                 request.remote_addr)
+            send_ntfy('Update Record Error', str(exc))
+            return jsonify({'error': 'Failed to update record', 'detail': str(exc)}), 500
         action = 'Updated'
     else:
-        resp = requests.post(
-            'https://dns.hetzner.com/api/v1/records',
-            headers={
-                'Auth-API-Token': HETZNER_TOKEN,
-                'Content-Type': 'application/json',
-            },
-            json=payload,
-            timeout=10,
-        )
+        try:
+            resp = requests.post(
+                'https://dns.hetzner.com/api/v1/records',
+                headers={
+                    'Auth-API-Token': HETZNER_TOKEN,
+                    'Content-Type': 'application/json',
+                },
+                json=payload,
+                timeout=10,
+            )
+        except requests.RequestException as exc:
+            app.logger.exception("Create record exception for %s from %s", url,
+                                 request.remote_addr)
+            send_ntfy('Create Record Error', str(exc))
+            return jsonify({'error': 'Failed to create record', 'detail': str(exc)}), 500
         action = 'Created'
 
     if resp.ok:
