@@ -1,6 +1,7 @@
 import os, sys; sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from client import update_dns
 import pytest
+import requests
 
 
 def test_get_verify_option_ca_bundle(monkeypatch):
@@ -39,9 +40,9 @@ def test_main_request_exception(monkeypatch):
     monkeypatch.setenv("INTERVAL", "0")
 
     def mock_post(*args, **kwargs):
-        raise update_dns.requests.exceptions.RequestException("boom")
+        raise requests.exceptions.RequestException("boom")
 
-    monkeypatch.setattr(update_dns.requests, "post", mock_post)
+    monkeypatch.setattr(requests, "post", mock_post)
 
     with pytest.raises(SystemExit) as excinfo:
         update_dns.main()
@@ -57,7 +58,7 @@ def test_main_non_2xx(monkeypatch):
         status_code = 500
         text = "err"
 
-    monkeypatch.setattr(update_dns.requests, "post", lambda *a, **k: DummyResp())
+    monkeypatch.setattr(requests, "post", lambda *a, **k: DummyResp())
 
     with pytest.raises(SystemExit) as excinfo:
         update_dns.main()
