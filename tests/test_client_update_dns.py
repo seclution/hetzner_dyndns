@@ -1,5 +1,7 @@
 import os, sys; sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from client import update_dns
+import pytest
+import requests
 
 
 def test_get_verify_option_ca_bundle(monkeypatch):
@@ -40,9 +42,13 @@ def test_invalid_interval_defaults_to_zero(monkeypatch, capsys):
 
     called = {}
 
+    class DummyResp:
+        status_code = 200
+        text = ""
+
     def mock_post(url, json=None, verify=None, timeout=None):
         called["url"] = url
-        return type("R", (), {})()
+        return DummyResp()
 
     monkeypatch.setattr(update_dns.requests, "post", mock_post)
     monkeypatch.setattr(update_dns, "get_verify_option", lambda: True)
@@ -51,3 +57,43 @@ def test_invalid_interval_defaults_to_zero(monkeypatch, capsys):
     update_dns.main()
     assert called["url"] == "http://b/update"
     assert "Invalid INTERVAL" in capsys.readouterr().out
+
+
+def test_update_dns_request_exception(monkeypatch, capsys):
+    monkeypatch.setenv("BACKEND_URL", "http://b")
+    monkeypatch.setenv("FQDN", "host.example.com")
+    monkeypatch.delenv("IP", raising=False)
+
+    def mock_post(*args, **kwargs):
+        raise requests.exceptions.RequestException("boom")
+
+    monkeypatch.setattr(update_dns.requests, "post", mock_post)
+    monkeypatch.setattr(update_dns, "get_verify_option", lambda: True)
+    monkeypatch.setattr(sys, "argv", ["update_dns.py"], raising=False)
+
+    with pytest.raises(SystemExit) as exc:
+        update_dns.main()
+    assert exc.value.code == 1
+    assert "boom" in capsys.readouterr().out
+
+
+def test_update_dns_non_2xx(monkeypatch, capsys):
+    monkeypatch.setenv("BACKEND_URL", "http://b")
+    monkeypatch.setenv("FQDN", "host.example.com")
+    monkeypatch.delenv("IP", raising=False)
+
+    class DummyResp:
+        def __init__(self):
+            self.status_code = 500
+            self.text = "fail"
+
+    monkeypatch.setattr(update_dns.requests, "post", lambda *a, **k: DummyResp())
+    monkeypatch.setattr(update_dns, "get_verify_option", lambda: True)
+    monkeypatch.setattr(sys, "argv", ["update_dns.py"], raising=False)
+
+    with pytest.raises(SystemExit) as exc:
+        update_dns.main()
+    assert exc.value.code == 1
+    out = capsys.readouterr().out
+    assert "500" in out
+    assert "fail" in out

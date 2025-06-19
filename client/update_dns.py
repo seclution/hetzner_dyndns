@@ -47,12 +47,21 @@ def main():
 
     while True:
         verify = get_verify_option()
-        resp = requests.post(
-            f"{backend.rstrip('/')}/update",
-            json=payload,
-            verify=verify,
-            timeout=10,
-        )
+        try:
+            resp = requests.post(
+                f"{backend.rstrip('/')}/update",
+                json=payload,
+                verify=verify,
+                timeout=10,
+            )
+        except requests.exceptions.RequestException as exc:
+            print(exc)
+            sys.exit(1)
+
+        if not (200 <= resp.status_code < 300):
+            print(resp.status_code, resp.text)
+            sys.exit(1)
+
         if interval <= 0:
             break
         time.sleep(interval)
