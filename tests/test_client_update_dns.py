@@ -46,7 +46,7 @@ def test_invalid_interval_defaults_to_zero(monkeypatch, capsys):
         status_code = 200
         text = ""
 
-    def mock_post(url, json=None, verify=None, timeout=None):
+    def mock_post(url, json=None, verify=None, headers=None, timeout=None):
         called["url"] = url
         return DummyResp()
 

@@ -21,6 +21,7 @@ def get_verify_option():
 
 def main():
     backend = os.environ.get('BACKEND_URL')
+    api_key = os.environ.get('API_KEY')
     fqdn = os.environ.get('FQDN')
     ip = os.environ.get('IP')
     try:
@@ -56,6 +57,7 @@ def main():
             resp = requests.post(
                 f"{backend.rstrip('/')}/update",
                 json=payload,
+                headers={"X-API-Key": api_key} if api_key else None,
                 verify=verify,
                 timeout=10,
             )

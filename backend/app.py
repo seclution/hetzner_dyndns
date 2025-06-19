@@ -3,6 +3,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 from flask import Flask, request, jsonify, abort
 import requests
+import secrets
 
 app = Flask(__name__)
 
@@ -11,6 +12,30 @@ NTFY_URL = os.environ.get("NTFY_URL")
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC")
 NTFY_USERNAME = os.environ.get("NTFY_USERNAME")
 NTFY_PASSWORD = os.environ.get("NTFY_PASSWORD")
+
+# Pre-shared API key configuration
+API_KEY_FILE = "/pre-shared-key"
+
+
+def _load_api_key() -> str:
+    key = ""
+    try:
+        if os.path.exists(API_KEY_FILE):
+            with open(API_KEY_FILE, "r") as f:
+                key = f.read().strip()
+    except Exception as exc:  # pragma: no cover - shouldn't happen
+        print(f"Failed to read API key: {exc}")
+    if not key:
+        key = secrets.token_urlsafe(32)
+        try:
+            with open(API_KEY_FILE, "w") as f:
+                f.write(key)
+        except Exception as exc:  # pragma: no cover - shouldn't happen
+            print(f"Failed to write API key: {exc}")
+    return key
+
+
+API_KEY = _load_api_key()
 
 # Logging configuration
 DEBUG_LOGGING = os.environ.get("DEBUG_LOGGING", "0").lower() in ("1", "true", "yes")
@@ -52,6 +77,9 @@ def send_ntfy(title: str, message: str) -> None:
 def update():
     if not HETZNER_TOKEN:
         abort(500, 'Backend not configured')
+
+    if request.headers.get('X-API-Key') != API_KEY:
+        return jsonify({'error': 'Unauthorized'}), 401
 
     data = request.get_json(silent=True) or {}
     if DEBUG_LOGGING:
