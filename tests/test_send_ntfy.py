@@ -81,3 +81,24 @@ def test_send_ntfy_logs_warning(monkeypatch):
 
     backend_app.send_ntfy("t", "m")
     assert "500" in logs[0]
+
+
+def test_send_ntfy_priority(monkeypatch):
+    captured = {}
+
+    class DummyResp:
+        status_code = 200
+        ok = True
+        text = ""
+
+    def mock_post(url, headers=None, data=None, auth=None, timeout=None):
+        captured["headers"] = headers
+        return DummyResp()
+
+    monkeypatch.setattr(backend_app.requests, "post", mock_post)
+    monkeypatch.setattr(backend_app, "NTFY_URL", "http://ntfy")
+    monkeypatch.setattr(backend_app, "NTFY_TOPIC", None)
+    monkeypatch.setattr(backend_app, "DEBUG_LOGGING", True)
+
+    backend_app.send_ntfy("t", "m", priority=4)
+    assert captured["headers"].get("Priority") == "4"

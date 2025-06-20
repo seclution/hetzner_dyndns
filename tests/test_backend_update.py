@@ -575,8 +575,9 @@ def test_monitor_check_connections(monkeypatch):
     monkeypatch.setattr(backend_app, "LOST_CONNECTION_TIMEOUT", 10)
     sent = {}
 
-    def fake_ntfy(t, m, *, is_error=False):
+    def fake_ntfy(t, m, *, is_error=False, priority=None):
         sent["msg"] = m
+        sent["priority"] = priority
 
     monkeypatch.setattr(backend_app, "send_ntfy", fake_ntfy)
     errors = []
@@ -588,6 +589,7 @@ def test_monitor_check_connections(monkeypatch):
     backend_app.check_connections(now=20)
     assert "lost dyndns connection to host.example.com" in errors[0]
     assert "host.example.com" in sent["msg"]
+    assert sent["priority"] == 4
     assert backend_app.ESTABLISHED_CONNECTIONS == {}
 
 
@@ -772,5 +774,5 @@ def test_request_cache_logs_only_in_debug(monkeypatch):
         headers={"X-Pre-Shared-Key": "test"},
     )
     assert resp.status_code == 200
-    assert any("(cache)" in l for l in logs)
+    assert any("(cache)" in line for line in logs)
     assert call_count["post"] == 1

@@ -96,7 +96,9 @@ to the file. Use the matching key from this file for every client.
 The backend keeps track of the last successful update for each configured
 hostname. A background task periodically checks these timestamps and if a host
 stops updating for longer than `LOST_CONNECTION_TIMEOUT` seconds an error
-message is logged and a notification is sent via ntfy.
+message is logged and a notification is sent via ntfy. The lost-connection
+notification is sent with priority 4 so it triggers a long vibration burst and
+a pop-over on supporting clients.
 
 When using Docker Compose, make sure the file exists and is writable by the
 container user. Otherwise Docker may create a directory instead of a file and
