@@ -1,7 +1,7 @@
-FROM python:3.11-slim
+FROM python:3.11-alpine
 
 # create non-root user
-RUN adduser --disabled-password --gecos '' appuser
+RUN adduser -D -g '' appuser
 
 WORKDIR /app
 COPY requirements.txt ./
