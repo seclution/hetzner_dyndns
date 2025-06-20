@@ -108,6 +108,9 @@ _log_handlers = [logging.StreamHandler()]
 _file_handler_error = None
 if LOG_FILE:
     try:
+        log_dir = os.path.dirname(LOG_FILE)
+        if log_dir:
+            os.makedirs(log_dir, exist_ok=True)
         _log_handlers.append(
             RotatingFileHandler(
                 LOG_FILE, maxBytes=LOG_MAX_BYTES, backupCount=LOG_BACKUP_COUNT
