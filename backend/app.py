@@ -49,6 +49,11 @@ RECORD_TTL = _get_int_env("RECORD_TTL", 21600)
 
 # Pre-shared key configuration
 PRE_SHARED_KEY_FILE = "/pre-shared-key"
+REGISTERED_FQDNS = [
+    h.strip().lower()
+    for h in os.environ.get("REGISTERED_FQDNS", "").split(",")
+    if h.strip()
+]
 
 # Connection monitoring configuration
 LOST_CONNECTION_TIMEOUT = _get_int_env("LOST_CONNECTION_TIMEOUT", 3 * 3600)
@@ -60,23 +65,32 @@ _CONNECTION_LOCK = threading.Lock()
 _MONITOR_THREAD = None
 
 
-def _load_pre_shared_key() -> str:
-    key = ""
+def _load_pre_shared_keys(urls: list[str]) -> dict[str, str]:
+    keys: dict[str, str] = {}
     try:
         if os.path.exists(PRE_SHARED_KEY_FILE):
             with open(PRE_SHARED_KEY_FILE, "r") as f:
-                key = f.read().strip()
+                for line in f:
+                    parts = line.strip().split()
+                    if len(parts) == 2:
+                        keys[parts[0].lower()] = parts[1]
     except Exception:  # pragma: no cover - shouldn't happen
-        app.logger.exception("Failed to read API key")
-    if not key:
-        key = secrets.token_urlsafe(32)
+        app.logger.exception("Failed to read API key file")
+    changed = False
+    for url in urls:
+        url = url.lower()
+        if url not in keys:
+            keys[url] = secrets.token_urlsafe(32)
+            changed = True
+    if changed:
         try:
             with open(PRE_SHARED_KEY_FILE, "w") as f:
-                f.write(key)
+                for host, key in keys.items():
+                    f.write(f"{host} {key}\n")
             os.chmod(PRE_SHARED_KEY_FILE, 0o600)
         except Exception:  # pragma: no cover - shouldn't happen
-            app.logger.exception("Failed to write API key")
-    return key
+            app.logger.exception("Failed to write API key file")
+    return keys
 
 
 # Logging configuration
@@ -115,7 +129,7 @@ if _file_handler_error:
 
 app.logger.setLevel(log_level)
 
-PRE_SHARED_KEY = _load_pre_shared_key()
+PRE_SHARED_KEYS = _load_pre_shared_keys(REGISTERED_FQDNS)
 
 
 def get_zones(force_refresh: bool = False):
@@ -462,20 +476,6 @@ def update():
     if not HETZNER_TOKEN:
         abort(500, "Backend not configured")
 
-    auth_ok = False
-    if PRE_SHARED_KEY and request.headers.get("X-Pre-Shared-Key") == PRE_SHARED_KEY:
-        auth_ok = True
-    if not auth_ok and BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD:
-        auth = request.authorization
-        if (
-            auth
-            and auth.username == BASIC_AUTH_USERNAME
-            and auth.password == BASIC_AUTH_PASSWORD
-        ):
-            auth_ok = True
-    if not auth_ok:
-        return {"error": "Unauthorized"}, 401
-
     data = request.get_json(silent=True) or {}
     if DEBUG_LOGGING:
         app.logger.debug("Request JSON: %s", data)
@@ -495,6 +495,21 @@ def update():
         app.logger.error("Request from %s missing fqdn", request.remote_addr)
         send_ntfy("Param Error", "Missing FQDN", is_error=True)
         return {"error": "Missing FQDN"}, 400
+
+    auth_ok = False
+    expected_key = PRE_SHARED_KEYS.get(url.lower())
+    if expected_key and request.headers.get("X-Pre-Shared-Key") == expected_key:
+        auth_ok = True
+    if not auth_ok and BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD:
+        auth = request.authorization
+        if (
+            auth
+            and auth.username == BASIC_AUTH_USERNAME
+            and auth.password == BASIC_AUTH_PASSWORD
+        ):
+            auth_ok = True
+    if not auth_ok:
+        return {"error": "Unauthorized"}, 401
 
     record_type = data.get("type", "A").upper()
     if record_type not in ("A", "AAAA"):

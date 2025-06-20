@@ -14,7 +14,8 @@ The repository contains two parts:
    - `HETZNER_TOKEN` – your Hetzner DNS API token
    - `NTFY_URL` – base URL of your NTFY instance
    - `NTFY_TOPIC` – topic name for notifications
-2. Create a writable `backend/pre-shared-key` file for the container:
+2. List your hostnames in `REGISTERED_FQDNS` inside
+   `backend/.secrets` and create a writable `backend/pre-shared-key` file:
 
    ```bash
    touch backend/pre-shared-key
@@ -24,7 +25,7 @@ The repository contains two parts:
 3. In `client/docker-compose.yml` adjust the environment variables:
    - `BACKEND_URL` – URL of the running backend
    - `FQDN` – fully qualified domain name to update
-   - `PRE_SHARED_KEY` – value from `backend/pre-shared-key` (created on first backend start)
+   - `PRE_SHARED_KEY` – key for this FQDN from `backend/pre-shared-key`
 4. Start the containers **on separate hosts**. The client must never run on the
    same machine as the backend.
 
@@ -81,11 +82,12 @@ records are created with a 6&nbsp;hour TTL.  These values can be adjusted via th
 `ZONE_CACHE_TTL` and `RECORD_TTL` environment variables.  The request-level
 cache lifetime is controlled by `REQUEST_CACHE_TTL`.
 
-The backend authenticates requests using a pre-shared key stored in
+The backend authenticates requests using per-host pre-shared keys stored in
 `./pre-shared-key` on the host and mounted into the container at
-`/pre-shared-key` (see `backend/docker-compose.yml`). If the file does
-not exist on the first start, the service creates it and writes a random
-token. Use this value for the client's `PRE_SHARED_KEY` setting.
+`/pre-shared-key` (see `backend/docker-compose.yml`). The hostnames are
+configured via the `REGISTERED_FQDNS` environment variable. On first start
+the service generates a random key for each hostname and writes the mapping
+to the file. Use the matching key from this file for every client.
 
 When using Docker Compose, make sure the file exists and is writable by the
 container user. Otherwise Docker may create a directory instead of a file and
@@ -106,6 +108,7 @@ The container reads the following variables which should be provided via a
 - `HETZNER_TOKEN` – API token for the Hetzner DNS API
 - `NTFY_URL` – Base URL of your NTFY instance
 - `NTFY_TOPIC` – Topic name used for notifications
+- `REGISTERED_FQDNS` – comma-separated hostnames to manage
 - `NTFY_USERNAME` / `NTFY_PASSWORD` – credentials for basic auth with NTFY (optional)
 - `DEBUG_LOGGING` – set to `1` to enable verbose debug logs and Flask debug mode (default `0`)
 - `LOG_FILE` – path to the rotating log file. Leave empty to disable file
@@ -140,7 +143,7 @@ arguments:
 
 - `BACKEND_URL` – URL of the backend service
 - `FQDN` – fully qualified domain name to update
-- `PRE_SHARED_KEY` – token from `backend/pre-shared-key`
+- `PRE_SHARED_KEY` – key for the configured FQDN from `backend/pre-shared-key`
 - `IP` – explicit IP address to set (optional)
 - `INTERVAL` – run repeatedly every given seconds (e.g. `3600` for hourly)
 - `CA_BUNDLE` – override certificate bundle path (optional)

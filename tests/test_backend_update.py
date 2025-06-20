@@ -21,9 +21,22 @@ def reset_request_cache(monkeypatch):
     monkeypatch.setattr(backend_app, "REQUEST_CACHE", {})
     monkeypatch.setattr(backend_app, "REQUEST_CACHE_TTL", 3600)
 
+
+@pytest.fixture(autouse=True)
+def set_pre_shared_keys(monkeypatch):
+    monkeypatch.setattr(
+        backend_app,
+        "PRE_SHARED_KEYS",
+        {
+            "host.example.com": "test",
+            "host.other.com": "test",
+            "host.example.co.uk": "test",
+            "example.com": "test",
+        },
+    )
+
 def test_update_requires_api_key(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "PRE_SHARED_KEY", "test")
     monkeypatch.setattr(
         backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
     )
@@ -34,7 +47,6 @@ def test_update_requires_api_key(monkeypatch):
 
 def test_update_creates_record(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "PRE_SHARED_KEY", "test")
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
     monkeypatch.setattr(
         backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
@@ -66,7 +78,6 @@ def test_update_creates_record(monkeypatch):
 
 def test_update_request_exception(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "PRE_SHARED_KEY", "test")
     called = {}
     monkeypatch.setattr(
         backend_app,
@@ -96,7 +107,6 @@ def test_update_request_exception(monkeypatch):
 
 def test_update_updates_record(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "PRE_SHARED_KEY", "test")
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
     monkeypatch.setattr(
         backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
@@ -130,7 +140,6 @@ def test_update_updates_record(monkeypatch):
 
 def test_update_api_failure(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "PRE_SHARED_KEY", "test")
     called = {}
     monkeypatch.setattr(
         backend_app,
@@ -170,7 +179,6 @@ def test_update_api_failure(monkeypatch):
 
 def test_invalid_ip(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "PRE_SHARED_KEY", "test")
     monkeypatch.setattr(
         backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
     )
@@ -185,7 +193,6 @@ def test_invalid_ip(monkeypatch):
 
 def test_ipv6_record(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "PRE_SHARED_KEY", "test")
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
     monkeypatch.setattr(
         backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
@@ -217,7 +224,6 @@ def test_ipv6_record(monkeypatch):
 
 def test_ip_version_mismatch(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "PRE_SHARED_KEY", "test")
     monkeypatch.setattr(
         backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
     )
@@ -232,7 +238,6 @@ def test_ip_version_mismatch(monkeypatch):
 
 def test_disallowed_domain(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "PRE_SHARED_KEY", "test")
     monkeypatch.setattr(backend_app, "ALLOWED_ZONES", ["example.com"])
     monkeypatch.setattr(
         backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
@@ -249,7 +254,6 @@ def test_disallowed_domain(monkeypatch):
 
 def test_update_multi_level_zone(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "PRE_SHARED_KEY", "test")
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
     monkeypatch.setattr(
         backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
@@ -291,7 +295,6 @@ def test_update_multi_level_zone(monkeypatch):
 
 def test_root_domain_rejected(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "PRE_SHARED_KEY", "test")
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
 
     def mock_get(url, headers=None, **kwargs):
@@ -312,7 +315,6 @@ def test_root_domain_rejected(monkeypatch):
 
 def test_basic_auth(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "PRE_SHARED_KEY", "test")
     monkeypatch.setattr(backend_app, "BASIC_AUTH_USERNAME", "u")
     monkeypatch.setattr(backend_app, "BASIC_AUTH_PASSWORD", "p")
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
@@ -411,7 +413,6 @@ def test_nic_update_query_auth(monkeypatch):
 
 def test_record_ttl_from_env(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "PRE_SHARED_KEY", "test")
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
     monkeypatch.setattr(
         backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
@@ -446,7 +447,6 @@ def test_record_ttl_from_env(monkeypatch):
 
 def test_request_cache_skips_duplicate(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "PRE_SHARED_KEY", "test")
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
     monkeypatch.setattr(backend_app, "ZONE_CACHE", {"zones": None, "expires": 0})
 
@@ -535,7 +535,6 @@ def test_purge_request_cache(monkeypatch):
 
 def test_perform_update_purges_cache(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "PRE_SHARED_KEY", "test")
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
     monkeypatch.setattr(
         backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
