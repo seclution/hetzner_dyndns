@@ -92,6 +92,11 @@ configured via the `REGISTERED_FQDNS` environment variable. On first start
 the service generates a random key for each hostname and writes the mapping
 to the file. Use the matching key from this file for every client.
 
+The backend keeps track of the last successful update for each configured
+hostname. A background task periodically checks these timestamps and if a host
+stops updating for longer than `LOST_CONNECTION_TIMEOUT` seconds an error
+message is logged and a notification is sent via ntfy.
+
 When using Docker Compose, make sure the file exists and is writable by the
 container user. Otherwise Docker may create a directory instead of a file and
 the service fails with a permission error. Create the file and set the
