@@ -39,7 +39,7 @@ def set_pre_shared_keys(monkeypatch):
 def allow_fqdns(monkeypatch):
     monkeypatch.setattr(
         backend_app,
-        "ALLOWED_FQDNS",
+        "REGISTERED_FQDNS",
         [
             "host.example.com",
             "host.other.com",
@@ -251,7 +251,7 @@ def test_ip_version_mismatch(monkeypatch):
 
 def test_disallowed_domain(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "ALLOWED_FQDNS", ["host.example.com"])
+    monkeypatch.setattr(backend_app, "REGISTERED_FQDNS", ["host.example.com"])
     monkeypatch.setattr(
         backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
     )
@@ -267,7 +267,7 @@ def test_disallowed_domain(monkeypatch):
 
 def test_backend_not_configured(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "ALLOWED_FQDNS", [])
+    monkeypatch.setattr(backend_app, "REGISTERED_FQDNS", [])
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
     monkeypatch.setattr(
         backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}

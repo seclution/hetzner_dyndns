@@ -26,11 +26,6 @@ NTFY_URL = os.environ.get("NTFY_URL")
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC")
 NTFY_USERNAME = os.environ.get("NTFY_USERNAME")
 NTFY_PASSWORD = os.environ.get("NTFY_PASSWORD")
-ALLOWED_FQDNS = [
-    h.strip().lower()
-    for h in os.environ.get("ALLOWED_FQDNS", "").split(",")
-    if h.strip()
-]
 BASIC_AUTH_USERNAME = os.environ.get("BASIC_AUTH_USERNAME")
 BASIC_AUTH_PASSWORD = os.environ.get("BASIC_AUTH_PASSWORD")
 
@@ -133,7 +128,6 @@ if _file_handler_error:
 app.logger.setLevel(log_level)
 
 if DEBUG_LOGGING:
-    app.logger.debug("ALLOWED_FQDNS: %s", ALLOWED_FQDNS)
     app.logger.debug("REGISTERED_FQDNS: %s", REGISTERED_FQDNS)
 
 PRE_SHARED_KEYS = _load_pre_shared_keys(REGISTERED_FQDNS)
@@ -296,14 +290,14 @@ def perform_update(
         send_ntfy("Param Error", "Invalid FQDN", is_error=True)
         return {"error": "Invalid FQDN"}, 400
 
-    if not ALLOWED_FQDNS:
+    if not REGISTERED_FQDNS:
         app.logger.error(
             "Request from %s attempted update but backend not configured for updates",
             request.remote_addr,
         )
         send_ntfy("Backend Not Configured", fqdn, is_error=True)
         return {"error": "backend not configured for updates"}, 500
-    if fqdn.lower() not in ALLOWED_FQDNS:
+    if fqdn.lower() not in REGISTERED_FQDNS:
         app.logger.error(
             "Request from %s disallowed fqdn: %s",
             request.remote_addr,
