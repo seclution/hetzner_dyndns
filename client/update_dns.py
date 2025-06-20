@@ -28,10 +28,10 @@ def main():
     fqdn = os.environ.get("FQDN")
     ip = os.environ.get("IP")
     try:
-        interval = int(os.environ.get("INTERVAL", "0"))
+        interval = int(os.environ.get("INTERVAL", "60"))
     except (TypeError, ValueError):
-        print("Invalid INTERVAL, defaulting to 0")
-        interval = 0
+        print("Invalid INTERVAL, defaulting to 60")
+        interval = 60
     interval = max(0, interval)
 
     if len(sys.argv) > 1:

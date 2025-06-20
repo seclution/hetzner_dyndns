@@ -36,7 +36,7 @@ def test_get_verify_option_default(monkeypatch):
     assert update_dns.get_verify_option() is True
 
 
-def test_invalid_interval_defaults_to_zero(monkeypatch, capsys):
+def test_invalid_interval_defaults_to_sixty(monkeypatch, capsys):
     monkeypatch.setenv("BACKEND_URL", "http://b")
     monkeypatch.setenv("FQDN", "host.example.com")
     monkeypatch.setenv("INTERVAL", "bad")
@@ -57,7 +57,13 @@ def test_invalid_interval_defaults_to_zero(monkeypatch, capsys):
     monkeypatch.setattr(update_dns, "get_verify_option", lambda: True)
     monkeypatch.setattr(sys, "argv", ["update_dns.py"], raising=False)
 
-    update_dns.main()
+    def fake_sleep(i):
+        raise StopIteration()
+
+    monkeypatch.setattr(update_dns.time, "sleep", fake_sleep)
+
+    with pytest.raises(StopIteration):
+        update_dns.main()
     assert called["url"] == "http://b/update"
     assert "Invalid INTERVAL" in capsys.readouterr().out
 
@@ -93,6 +99,7 @@ def test_update_dns_request_exception(monkeypatch, capsys):
     monkeypatch.setenv("BACKEND_URL", "http://b")
     monkeypatch.setenv("FQDN", "host.example.com")
     monkeypatch.setenv("PRE_SHARED_KEY", "k")
+    monkeypatch.setenv("INTERVAL", "0")
     monkeypatch.delenv("IP", raising=False)
 
     def mock_post(*args, **kwargs):
@@ -112,6 +119,7 @@ def test_update_dns_non_2xx(monkeypatch, capsys):
     monkeypatch.setenv("BACKEND_URL", "http://b")
     monkeypatch.setenv("FQDN", "host.example.com")
     monkeypatch.setenv("PRE_SHARED_KEY", "k")
+    monkeypatch.setenv("INTERVAL", "0")
     monkeypatch.delenv("IP", raising=False)
 
     class DummyResp:

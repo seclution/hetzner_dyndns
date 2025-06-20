@@ -11,4 +11,4 @@ services:
       - PRE_SHARED_KEY=
       # - IP=1.2.3.4  # optional static IP variant
       # update interval in seconds
-      - INTERVAL=3600
+      - INTERVAL=60
