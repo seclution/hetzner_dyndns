@@ -192,7 +192,13 @@ def find_zone(fqdn: str, zones):
     return None, None, None
 
 
-def send_ntfy(title: str, message: str, *, is_error: bool = False) -> None:
+def send_ntfy(
+    title: str,
+    message: str,
+    *,
+    is_error: bool = False,
+    priority: int | None = None,
+) -> None:
     """Send a notification via ntfy.
 
     Success messages are only emitted when ``DEBUG_LOGGING`` is enabled. Error
@@ -204,6 +210,8 @@ def send_ntfy(title: str, message: str, *, is_error: bool = False) -> None:
     if not NTFY_URL:
         return
     headers = {"Title": title} if title else {}
+    if priority is not None:
+        headers["Priority"] = str(priority)
     auth = None
     if NTFY_USERNAME and NTFY_PASSWORD:
         auth = (NTFY_USERNAME, NTFY_PASSWORD)
@@ -248,7 +256,12 @@ def check_connections(*, now: float | None = None) -> None:
                 expired.append(url)
     for url in expired:
         app.logger.error("Lost DynDNS connection to %s", url)
-        send_ntfy("DynDNS Lost Connection", f"Lost dyndns connection to {url}", is_error=True)
+        send_ntfy(
+            "DynDNS Lost Connection",
+            f"Lost dyndns connection to {url}",
+            is_error=True,
+            priority=4,
+        )
         with _CONNECTION_LOCK:
             ESTABLISHED_CONNECTIONS.pop(url, None)
 
