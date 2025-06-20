@@ -87,6 +87,7 @@ Hetzner again.  The zone list is cached for 24&nbsp;hours by default and DNS
 records are created with a 6&nbsp;hour TTL.  These values can be adjusted via the
 `ZONE_CACHE_TTL` and `RECORD_TTL` environment variables.  The request-level
 cache lifetime is controlled by `REQUEST_CACHE_TTL`.
+The "no change (cache)" log entry is only emitted when debug logging is enabled.
 
 The backend authenticates requests using per-host pre-shared keys stored in
 `./pre-shared-key` on the host and mounted into the container at
