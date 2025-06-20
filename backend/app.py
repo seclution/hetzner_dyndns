@@ -132,6 +132,10 @@ if _file_handler_error:
 
 app.logger.setLevel(log_level)
 
+if DEBUG_LOGGING:
+    app.logger.debug("ALLOWED_FQDNS: %s", ALLOWED_FQDNS)
+    app.logger.debug("REGISTERED_FQDNS: %s", REGISTERED_FQDNS)
+
 PRE_SHARED_KEYS = _load_pre_shared_keys(REGISTERED_FQDNS)
 
 
@@ -291,6 +295,9 @@ def perform_update(
         )
         send_ntfy("Param Error", "Invalid FQDN", is_error=True)
         return {"error": "Invalid FQDN"}, 400
+
+    if DEBUG_LOGGING:
+        app.logger.debug("perform_update fqdn=%s allowed=%s", fqdn, ALLOWED_FQDNS)
 
     if not ALLOWED_FQDNS or fqdn.lower() not in ALLOWED_FQDNS:
         app.logger.error(
