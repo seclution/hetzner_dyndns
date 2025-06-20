@@ -296,7 +296,7 @@ def perform_update(
         send_ntfy("Param Error", "Invalid FQDN", is_error=True)
         return {"error": "Invalid FQDN"}, 400
 
-    if not ALLOWED_FQDNS or fqdn.lower() not in ALLOWED_FQDNS:
+    if not ALLOWED_FQDNS:
         app.logger.error(
             "Request from %s attempted update but backend not configured for updates",
             request.remote_addr,
@@ -551,9 +551,9 @@ def update():
         send_ntfy("Param Error", "IP version mismatch", is_error=True)
         return {"error": "IP version mismatch"}, 400
 
-    update_connection(url)
-
     result, status = perform_update(url, ip, record_type)
+    if status == 200:
+        update_connection(url)
     return jsonify(result), status
 
 
@@ -592,16 +592,15 @@ def nic_update():
 
     record_type = "AAAA" if ":" in ip else "A"
 
-    update_connection(hostname)
-
     result, status = perform_update(
         hostname, ip, record_type, skip_no_change=True
     )
-    if status != 200:
-        return jsonify(result), status
-    if result["status"] == "unchanged":
-        return f"nochg {result['ip']}", 200
-    return f"good {result['ip']}", 200
+    if status == 200:
+        update_connection(hostname)
+        if result["status"] == "unchanged":
+            return f"nochg {result['ip']}", 200
+        return f"good {result['ip']}", 200
+    return jsonify(result), status
 
 
 if __name__ == "__main__":
