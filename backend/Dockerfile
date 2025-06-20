@@ -20,4 +20,4 @@ ENV LISTEN_PORT=80
 # drop privileges
 USER appuser
 
-CMD ["gunicorn", "-b", "0.0.0.0:80", "app:app"]
+CMD ["sh", "-c", "gunicorn -b 0.0.0.0:${LISTEN_PORT:-80} app:app"]
