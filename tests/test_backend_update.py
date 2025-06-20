@@ -560,7 +560,7 @@ def test_monitor_update_connection(monkeypatch):
 
     monkeypatch.setattr(backend_app.app.logger, "info", fake_info)
     backend_app.update_connection("host.example.com", now=1)
-    assert "dyndns connection established with host.example.com" in logs
+    assert "DynDNS connection established with host.example.com" in logs
     logs.clear()
     backend_app.update_connection("host.example.com", now=2)
     assert logs == []
@@ -586,7 +586,7 @@ def test_monitor_check_connections(monkeypatch):
 
     monkeypatch.setattr(backend_app.app.logger, "error", fake_error)
     backend_app.check_connections(now=20)
-    assert "lost dyndns connection to host.example.com" in errors[0]
+    assert "Lost DynDNS connection to host.example.com" in errors[0]
     assert "host.example.com" in sent["msg"]
     assert backend_app.ESTABLISHED_CONNECTIONS == {}
 
