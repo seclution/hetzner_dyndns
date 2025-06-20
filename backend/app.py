@@ -109,7 +109,7 @@ def get_zones(force_refresh: bool = False):
         )
     except requests.RequestException as exc:
         app.logger.exception("Zone fetch exception")
-        send_ntfy("Zone Fetch Error", str(exc))
+        send_ntfy("Zone Fetch Error", str(exc), is_error=True)
         # If we have cached zones, return them even on failure
         if ZONE_CACHE["zones"] is not None:
             return ZONE_CACHE["zones"]
@@ -117,7 +117,7 @@ def get_zones(force_refresh: bool = False):
 
     if resp.status_code != 200:
         app.logger.error("Zone fetch failed: %s", resp.text)
-        send_ntfy("Zone Fetch Failed", resp.text)
+        send_ntfy("Zone Fetch Failed", resp.text, is_error=True)
         if ZONE_CACHE["zones"] is not None:
             return ZONE_CACHE["zones"]
         return None
@@ -150,7 +150,15 @@ def find_zone(fqdn: str, zones):
     return None, None, None
 
 
-def send_ntfy(title: str, message: str) -> None:
+def send_ntfy(title: str, message: str, *, is_error: bool = False) -> None:
+    """Send a notification via ntfy.
+
+    Success messages are only emitted when ``DEBUG_LOGGING`` is enabled. Error
+    notifications are always sent.
+    """
+
+    if not DEBUG_LOGGING and not is_error:
+        return
     if not NTFY_URL:
         return
     headers = {"Title": title} if title else {}
@@ -179,7 +187,7 @@ def perform_update(
         app.logger.error(
             "Request from %s invalid fqdn: %s", request.remote_addr, fqdn
         )
-        send_ntfy("Param Error", "Invalid FQDN")
+        send_ntfy("Param Error", "Invalid FQDN", is_error=True)
         return {"error": "Invalid FQDN"}, 400
 
     if ALLOWED_ZONES:
@@ -198,7 +206,7 @@ def perform_update(
                 request.remote_addr,
                 fqdn,
             )
-            send_ntfy("Domain Not Allowed", fqdn)
+            send_ntfy("Domain Not Allowed", fqdn, is_error=True)
             return {"error": "Domain not allowed"}, 403
 
     zones = get_zones()
@@ -217,7 +225,7 @@ def perform_update(
         app.logger.error(
             "Zone not found for %s from %s", fqdn, request.remote_addr
         )
-        send_ntfy("Zone Not Found", f"No matching zone for {fqdn}")
+        send_ntfy("Zone Not Found", f"No matching zone for {fqdn}", is_error=True)
         return {"error": "Zone not found"}, 404
 
     if ALLOWED_ZONES and zone_name.lower() not in ALLOWED_ZONES:
@@ -226,7 +234,7 @@ def perform_update(
             request.remote_addr,
             zone_name,
         )
-        send_ntfy("Domain Not Allowed", zone_name)
+        send_ntfy("Domain Not Allowed", zone_name, is_error=True)
         return {"error": "Domain not allowed"}, 403
 
     if subdomain == "":
@@ -235,7 +243,7 @@ def perform_update(
             request.remote_addr,
             fqdn,
         )
-        send_ntfy("Param Error", "Missing subdomain")
+        send_ntfy("Param Error", "Missing subdomain", is_error=True)
         return {"error": "Missing subdomain"}, 400
 
     try:
@@ -248,7 +256,7 @@ def perform_update(
         app.logger.exception(
             "Records fetch exception for %s from %s", fqdn, request.remote_addr
         )
-        send_ntfy("Records Fetch Error", str(exc))
+        send_ntfy("Records Fetch Error", str(exc), is_error=True)
         return {"error": "Failed to fetch records", "detail": str(exc)}, 500
     if records_resp.status_code != 200:
         app.logger.error(
@@ -257,7 +265,7 @@ def perform_update(
             request.remote_addr,
             records_resp.text,
         )
-        send_ntfy("Records Fetch Failed", records_resp.text)
+        send_ntfy("Records Fetch Failed", records_resp.text, is_error=True)
         return {"error": "Failed to fetch records"}, 500
 
     record_id = None
@@ -301,7 +309,7 @@ def perform_update(
                 fqdn,
                 request.remote_addr,
             )
-            send_ntfy("Update Record Error", str(exc))
+            send_ntfy("Update Record Error", str(exc), is_error=True)
             return {
                 "error": "Failed to update record",
                 "detail": str(exc),
@@ -324,7 +332,7 @@ def perform_update(
                 fqdn,
                 request.remote_addr,
             )
-            send_ntfy("Create Record Error", str(exc))
+            send_ntfy("Create Record Error", str(exc), is_error=True)
             return {
                 "error": "Failed to create record",
                 "detail": str(exc),
@@ -352,7 +360,7 @@ def perform_update(
             request.remote_addr,
             resp.text,
         )
-        send_ntfy(f"{action} Failed", resp.text)
+        send_ntfy(f"{action} Failed", resp.text, is_error=True)
         return {"error": "API failure", "detail": resp.text}, 500
 
 
@@ -392,7 +400,7 @@ def update():
     url = data.get("fqdn") or data.get("url")
     if not url:
         app.logger.error("Request from %s missing fqdn", request.remote_addr)
-        send_ntfy("Param Error", "Missing FQDN")
+        send_ntfy("Param Error", "Missing FQDN", is_error=True)
         return {"error": "Missing FQDN"}, 400
 
     record_type = data.get("type", "A").upper()
@@ -402,7 +410,7 @@ def update():
             request.remote_addr,
             record_type,
         )
-        send_ntfy("Param Error", "Invalid type")
+        send_ntfy("Param Error", "Invalid type", is_error=True)
         return {"error": "Invalid type"}, 400
 
     ip = data.get("ip")
@@ -419,20 +427,20 @@ def update():
         app.logger.error(
             "Request from %s invalid ip: %s", request.remote_addr, ip
         )
-        send_ntfy("Param Error", "Invalid IP")
+        send_ntfy("Param Error", "Invalid IP", is_error=True)
         return {"error": "Invalid IP"}, 400
 
     if record_type == "A" and ip_obj.version != 4:
         app.logger.error(
             "Request from %s ip version mismatch: %s", request.remote_addr, ip
         )
-        send_ntfy("Param Error", "IP version mismatch")
+        send_ntfy("Param Error", "IP version mismatch", is_error=True)
         return {"error": "IP version mismatch"}, 400
     if record_type == "AAAA" and ip_obj.version != 6:
         app.logger.error(
             "Request from %s ip version mismatch: %s", request.remote_addr, ip
         )
-        send_ntfy("Param Error", "IP version mismatch")
+        send_ntfy("Param Error", "IP version mismatch", is_error=True)
         return {"error": "IP version mismatch"}, 400
 
     result, status = perform_update(url, ip, record_type)
