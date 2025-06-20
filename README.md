@@ -14,16 +14,8 @@ The repository contains two parts:
    - `HETZNER_TOKEN` – your Hetzner DNS API token
    - `NTFY_URL` – base URL of your NTFY instance
    - `NTFY_TOPIC` – topic name for notifications
-2. List your hostnames in both `REGISTERED_FQDNS` and `ALLOWED_FQDNS` inside
-   `backend/.secrets`. Create a writable `backend/pre-shared-key` file:
-
-   If `ALLOWED_FQDNS` is empty, the backend performs no updates.
-   A missing or misspelled variable has the same effect and all updates are rejected.
-   After starting the containers verify the value with:
-
-   ```bash
-   docker compose exec backend env | grep ALLOWED_FQDNS
-   ```
+2. List your hostnames in `REGISTERED_FQDNS` inside `backend/.secrets`.
+   Create a writable `backend/pre-shared-key` file:
 
    ```bash
    touch backend/pre-shared-key
@@ -125,7 +117,7 @@ The container reads the following variables which should be provided via a
 - `HETZNER_TOKEN` – API token for the Hetzner DNS API
 - `NTFY_URL` – Base URL of your NTFY instance
 - `NTFY_TOPIC` – Topic name used for notifications
-- `REGISTERED_FQDNS` – comma-separated hostnames to manage
+- `REGISTERED_FQDNS` – comma-separated hostnames to manage. If empty, no updates are performed.
 - `NTFY_USERNAME` / `NTFY_PASSWORD` – credentials for basic auth with NTFY (optional)
 - `DEBUG_LOGGING` – set to `1` to enable verbose debug logs and Flask debug mode (default `0`)
 - `LOG_FILE` – path to the rotating log file. The parent directory is created
@@ -133,8 +125,6 @@ The container reads the following variables which should be provided via a
 - `LOG_MAX_BYTES` – maximum size of the log file before rotation (default 1048576)
 - `LOG_BACKUP_COUNT` – number of rotated log files to keep (default 3)
 - `LISTEN_PORT` – port the application listens on (default `80`)
-- `ALLOWED_FQDNS` – comma-separated list of allowed fully qualified domain names.
-  If empty, no updates are performed.
 - `RECORD_TTL` – TTL for DNS records in seconds (default `21600`)
 - `ZONE_CACHE_TTL` – how long the zone list is cached in seconds (default `86400`)
 - `REQUEST_CACHE_TTL` – cache lifetime for IP/FQDN entries to avoid redundant updates (default `300`)
