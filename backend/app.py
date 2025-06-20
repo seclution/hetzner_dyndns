@@ -207,13 +207,16 @@ def send_ntfy(title: str, message: str, *, is_error: bool = False) -> None:
     if NTFY_USERNAME and NTFY_PASSWORD:
         auth = (NTFY_USERNAME, NTFY_PASSWORD)
     try:
-        requests.post(
+        resp = requests.post(
             f"{NTFY_URL}/{NTFY_TOPIC}" if NTFY_TOPIC else NTFY_URL,
             headers=headers,
             data=message,
             auth=auth,
             timeout=10,
         )
+        if not resp.ok:
+            log = app.logger.error if is_error else app.logger.warning
+            log("ntfy returned %s: %s", resp.status_code, resp.text)
     except requests.RequestException:
         app.logger.exception("Failed to send ntfy message")
 
