@@ -61,9 +61,17 @@ An optional `type` field may be provided with `A` or `AAAA` to explicitly select
 the record type. Without it the backend defaults to an IPv4 `A` record.
 Both IPv4 and IPv6 addresses are validated using Python's `ipaddress`
 module before being accepted. The service notifies a configured NTFY topic
-about failures, while success messages are only sent when debug logging is
-enabled.
+about failures. Success messages are always written to the container logs and
+are only sent via ntfy when debug logging is enabled.
 Install the requirements with `pip install -r backend/requirements.txt` before running the service directly.
+
+To reduce the number of API calls, the service caches the list of zones from
+Hetzner's API as well as the last IP address seen for each domain.  Repeated
+updates with the same IP are answered from this cache without contacting
+Hetzner again.  The zone list is cached for 24&nbsp;hours by default and DNS
+records are created with a 6&nbsp;hour TTL.  These values can be adjusted via the
+`ZONE_CACHE_TTL` and `RECORD_TTL` environment variables.  The request-level
+cache lifetime is controlled by `REQUEST_CACHE_TTL`.
 
 The backend authenticates requests using a pre-shared key stored in
 `./pre-shared-key` on the host and mounted into the container at
@@ -99,7 +107,9 @@ The container reads the following variables which should be provided via a
 - `LISTEN_PORT` – port the application listens on (default `80`)
 - `ALLOWED_ZONES` – comma-separated list of domain zones allowed for updates
   (empty means all zones are allowed)
-- `RECORD_TTL` – TTL for DNS records in seconds (default `86400`)
+  - `RECORD_TTL` – TTL for DNS records in seconds (default `21600`)
+  - `ZONE_CACHE_TTL` – how long the zone list is cached in seconds (default `86400`)
+  - `REQUEST_CACHE_TTL` – cache lifetime for IP/FQDN entries to avoid redundant updates (default `300`)
 - `BASIC_AUTH_USERNAME` / `BASIC_AUTH_PASSWORD` – enable HTTP basic auth for the update endpoints
 
 ## Client
