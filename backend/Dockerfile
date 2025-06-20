@@ -1,4 +1,4 @@
-FROM python:3.11-alpine
+FROM python:3.11.7-alpine
 
 # create non-root user
 RUN adduser -D -g '' appuser
