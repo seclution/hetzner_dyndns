@@ -117,3 +117,46 @@ def test_missing_api_key(monkeypatch, capsys):
         update_dns.main()
     assert exc.value.code == 1
     assert "PRE_SHARED_KEY not set" in capsys.readouterr().out
+
+
+def test_update_dns_loops_on_failure(monkeypatch):
+    monkeypatch.setenv("BACKEND_URL", "http://b")
+    monkeypatch.setenv("FQDN", "host.example.com")
+    monkeypatch.setenv("PRE_SHARED_KEY", "k")
+    monkeypatch.setenv("INTERVAL", "10")
+    monkeypatch.delenv("IP", raising=False)
+
+    def mock_post(*args, **kwargs):
+        raise requests.exceptions.RequestException("boom")
+
+    monkeypatch.setattr(update_dns.requests, "post", mock_post)
+    monkeypatch.setattr(update_dns, "get_verify_option", lambda: True)
+
+    def fake_sleep(i):
+        raise StopIteration()
+
+    monkeypatch.setattr(update_dns.time, "sleep", fake_sleep)
+    monkeypatch.setattr(sys, "argv", ["update_dns.py"], raising=False)
+
+    with pytest.raises(StopIteration):
+        update_dns.main()
+
+
+def test_update_dns_single_run_failure_exits(monkeypatch):
+    monkeypatch.setenv("BACKEND_URL", "http://b")
+    monkeypatch.setenv("FQDN", "host.example.com")
+    monkeypatch.setenv("PRE_SHARED_KEY", "k")
+    monkeypatch.setenv("INTERVAL", "0")
+    monkeypatch.delenv("IP", raising=False)
+
+    class DummyResp:
+        status_code = 500
+        text = "fail"
+
+    monkeypatch.setattr(update_dns.requests, "post", lambda *a, **k: DummyResp())
+    monkeypatch.setattr(update_dns, "get_verify_option", lambda: True)
+    monkeypatch.setattr(sys, "argv", ["update_dns.py"], raising=False)
+
+    with pytest.raises(SystemExit) as exc:
+        update_dns.main()
+    assert exc.value.code == 1

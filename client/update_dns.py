@@ -67,14 +67,13 @@ def main():
                 verify=verify,
                 timeout=10,
             )
+            print(f"{resp.status_code} {resp.text}", flush=True)
+            success = 200 <= resp.status_code < 300
         except requests.exceptions.RequestException as exc:
-            print(exc)
-            sys.exit(1)
+            print(exc, flush=True)
+            success = False
 
-        # Print the response status and body for logging purposes
-        print(f"{resp.status_code} {resp.text}", flush=True)
-
-        if not (200 <= resp.status_code < 300):
+        if not success and interval <= 0:
             sys.exit(1)
 
         if interval <= 0:
