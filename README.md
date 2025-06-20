@@ -8,6 +8,8 @@ The repository contains two parts:
 - **client** – optional container/script calling the backend from the host whose
   IP should be used.
 
+Python 3.8 or newer is required. This is specified by `requires-python = ">=3.8"` in [pyproject.toml](pyproject.toml).
+
 1. Copy [`backend/.secrets.example`](backend/.secrets.example) to
    `backend/.secrets` and fill in at
    least these variables:
