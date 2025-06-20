@@ -341,7 +341,10 @@ def perform_update(
     now = time.time()
     cached = REQUEST_CACHE.get(cache_key)
     if cached and now < cached.get("expires", 0) and cached.get("ip") == ip:
-        app.logger.info("No change for %s from %s (cache)", fqdn, request.remote_addr)
+        if DEBUG_LOGGING:
+            app.logger.info(
+                "No change for %s from %s (cache)", fqdn, request.remote_addr
+            )
         send_ntfy("DynDNS Success", f"No change for {fqdn} -> {ip}")
         return {"status": "unchanged", "ip": ip}, 200
 
