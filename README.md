@@ -18,6 +18,12 @@ The repository contains two parts:
    `backend/.secrets`. Create a writable `backend/pre-shared-key` file:
 
    If `ALLOWED_FQDNS` is empty, the backend performs no updates.
+   A missing or misspelled variable has the same effect and all updates are rejected.
+   After starting the containers verify the value with:
+
+   ```bash
+   docker compose exec backend env | grep ALLOWED_FQDNS
+   ```
 
    ```bash
    touch backend/pre-shared-key
