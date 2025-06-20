@@ -32,6 +32,7 @@ def main():
     except (TypeError, ValueError):
         print("Invalid INTERVAL, defaulting to 0")
         interval = 0
+    interval = max(0, interval)
 
     if len(sys.argv) > 1:
         backend = sys.argv[1]

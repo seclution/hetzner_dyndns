@@ -62,6 +62,33 @@ def test_invalid_interval_defaults_to_zero(monkeypatch, capsys):
     assert "Invalid INTERVAL" in capsys.readouterr().out
 
 
+def test_negative_interval_treated_as_zero(monkeypatch, capsys):
+    monkeypatch.setenv("BACKEND_URL", "http://b")
+    monkeypatch.setenv("FQDN", "host.example.com")
+    monkeypatch.setenv("INTERVAL", "-5")
+    monkeypatch.setenv("PRE_SHARED_KEY", "k")
+    monkeypatch.delenv("IP", raising=False)
+
+    called = {}
+
+    class DummyResp:
+        status_code = 200
+        text = ""
+
+    def mock_post(url, json=None, verify=None, headers=None, timeout=None):
+        called["url"] = url
+        return DummyResp()
+
+    monkeypatch.setattr(update_dns.requests, "post", mock_post)
+    monkeypatch.setattr(update_dns, "get_verify_option", lambda: True)
+    monkeypatch.setattr(sys, "argv", ["update_dns.py"], raising=False)
+    monkeypatch.setattr(update_dns.time, "sleep", lambda i: called.setdefault("sleep", True))
+
+    update_dns.main()
+    assert called["url"] == "http://b/update"
+    assert "sleep" not in called
+
+
 def test_update_dns_request_exception(monkeypatch, capsys):
     monkeypatch.setenv("BACKEND_URL", "http://b")
     monkeypatch.setenv("FQDN", "host.example.com")
