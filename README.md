@@ -14,8 +14,11 @@ The repository contains two parts:
    - `HETZNER_TOKEN` – your Hetzner DNS API token
    - `NTFY_URL` – base URL of your NTFY instance
    - `NTFY_TOPIC` – topic name for notifications
-2. List your hostnames in `REGISTERED_FQDNS` inside
-   `backend/.secrets` and create a writable `backend/pre-shared-key` file:
+2. List your hostnames in `REGISTERED_FQDNS` inside `backend/.secrets`.
+   Store the tokens for these hosts in a writable `backend/pre-shared-key` file
+   (one `fqdn key` pair per line). The backend compose file mounts this file at
+   `/pre-shared-key` and generates keys for any missing hosts automatically, so
+   no `PRE_SHARED_KEY` variable is required on the server:
 
    ```bash
    touch backend/pre-shared-key
@@ -85,10 +88,11 @@ cache lifetime is controlled by `REQUEST_CACHE_TTL`.
 
 The backend authenticates requests using per-host pre-shared keys stored in
 `./pre-shared-key` on the host and mounted into the container at
-`/pre-shared-key` (see `backend/docker-compose.yml`). The hostnames are
-configured via the `REGISTERED_FQDNS` environment variable. On first start
-the service generates a random key for each hostname and writes the mapping
-to the file. Use the matching key from this file for every client.
+`/pre-shared-key` (see `backend/docker-compose.yml`). There is no
+`PRE_SHARED_KEY` environment variable for the backend. Hostnames are
+configured via the `REGISTERED_FQDNS` variable. On first start the service
+generates a random key for each hostname and writes the mapping to the file.
+Use the matching key from this file for every client.
 
 When using Docker Compose, make sure the file exists and is writable by the
 container user. Otherwise Docker may create a directory instead of a file and

@@ -12,4 +12,4 @@ services:
     env_file:
       - ./.secrets
     volumes:
-      - ./pre-shared-key:/pre-shared-key
+      - ./pre-shared-key:/pre-shared-key  # token file generated on first start
