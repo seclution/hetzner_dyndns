@@ -10,6 +10,17 @@ import threading
 
 app = Flask(__name__)
 
+
+def _get_int_env(name: str, default: int) -> int:
+    value = os.environ.get(name, str(default))
+    try:
+        return int(value)
+    except ValueError:
+        logging.getLogger(__name__).warning(
+            "Invalid %s=%r, using default %s", name, value, default
+        )
+        return default
+
 HETZNER_TOKEN = os.environ.get("HETZNER_TOKEN")
 NTFY_URL = os.environ.get("NTFY_URL")
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC")
@@ -26,22 +37,22 @@ BASIC_AUTH_PASSWORD = os.environ.get("BASIC_AUTH_PASSWORD")
 # Cache for zone information to reduce API calls
 ZONE_CACHE = {"zones": None, "expires": 0}
 # Default TTL for the zone list; zone IDs rarely change so cache for a day
-ZONE_CACHE_TTL = int(os.environ.get("ZONE_CACHE_TTL", "86400"))  # seconds
+ZONE_CACHE_TTL = _get_int_env("ZONE_CACHE_TTL", 86400)  # seconds
 
 # Cache last seen IP for FQDN/type combinations to avoid redundant updates
 # Mapping of (fqdn.lower(), record_type) -> {"ip": str, "expires": timestamp}
 REQUEST_CACHE = {}
-REQUEST_CACHE_TTL = int(os.environ.get("REQUEST_CACHE_TTL", "300"))  # seconds
+REQUEST_CACHE_TTL = _get_int_env("REQUEST_CACHE_TTL", 300)  # seconds
 
 # Default TTL for created or updated DNS records
-RECORD_TTL = int(os.environ.get("RECORD_TTL", "21600"))
+RECORD_TTL = _get_int_env("RECORD_TTL", 21600)
 
 # Pre-shared key configuration
 PRE_SHARED_KEY_FILE = "/pre-shared-key"
 
 # Connection monitoring configuration
-LOST_CONNECTION_TIMEOUT = int(os.environ.get("LOST_CONNECTION_TIMEOUT", str(3 * 3600)))
-CONNECTION_CHECK_INTERVAL = int(os.environ.get("CONNECTION_CHECK_INTERVAL", "60"))
+LOST_CONNECTION_TIMEOUT = _get_int_env("LOST_CONNECTION_TIMEOUT", 3 * 3600)
+CONNECTION_CHECK_INTERVAL = _get_int_env("CONNECTION_CHECK_INTERVAL", 60)
 
 # Mapping of url -> last update timestamp
 ESTABLISHED_CONNECTIONS = {}
@@ -75,8 +86,8 @@ DEBUG_LOGGING = os.environ.get("DEBUG_LOGGING", "0").lower() in (
     "yes",
 )
 LOG_FILE = os.environ.get("LOG_FILE")
-LOG_MAX_BYTES = int(os.environ.get("LOG_MAX_BYTES", str(1 * 1024 * 1024)))
-LOG_BACKUP_COUNT = int(os.environ.get("LOG_BACKUP_COUNT", "3"))
+LOG_MAX_BYTES = _get_int_env("LOG_MAX_BYTES", 1 * 1024 * 1024)
+LOG_BACKUP_COUNT = _get_int_env("LOG_BACKUP_COUNT", 3)
 
 log_level = logging.DEBUG if DEBUG_LOGGING else logging.INFO
 _log_handlers = [logging.StreamHandler()]
@@ -557,5 +568,5 @@ def nic_update():
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("LISTEN_PORT", "80"))
+    port = _get_int_env("LISTEN_PORT", 80)
     app.run(host="0.0.0.0", port=port, debug=DEBUG_LOGGING)
