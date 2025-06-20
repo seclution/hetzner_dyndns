@@ -61,7 +61,8 @@ An optional `type` field may be provided with `A` or `AAAA` to explicitly select
 the record type. Without it the backend defaults to an IPv4 `A` record.
 Both IPv4 and IPv6 addresses are validated using Python's `ipaddress`
 module before being accepted. The service notifies a configured NTFY topic
-about success or failure.
+about failures, while success messages are only sent when debug logging is
+enabled.
 Install the requirements with `pip install -r backend/requirements.txt` before running the service directly.
 
 The backend authenticates requests using a pre-shared key stored in

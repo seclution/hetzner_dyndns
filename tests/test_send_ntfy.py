@@ -13,6 +13,7 @@ def test_send_ntfy_with_auth(monkeypatch):
     monkeypatch.setattr(backend_app, "NTFY_TOPIC", None)
     monkeypatch.setattr(backend_app, "NTFY_USERNAME", "user")
     monkeypatch.setattr(backend_app, "NTFY_PASSWORD", "pass")
+    monkeypatch.setattr(backend_app, "DEBUG_LOGGING", True)
 
     backend_app.send_ntfy("t", "m")
     assert called["auth"] == ("user", "pass")
@@ -30,6 +31,7 @@ def test_send_ntfy_without_auth(monkeypatch):
     monkeypatch.setattr(backend_app, "NTFY_TOPIC", None)
     monkeypatch.setattr(backend_app, "NTFY_USERNAME", None)
     monkeypatch.setattr(backend_app, "NTFY_PASSWORD", None)
+    monkeypatch.setattr(backend_app, "DEBUG_LOGGING", True)
 
     backend_app.send_ntfy("t", "m")
     assert called["auth"] is None
