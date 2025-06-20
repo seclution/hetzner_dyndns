@@ -185,7 +185,7 @@ provides.
 
 ### Windows Task Scheduler
 
-On Windows you can achieve the same with the built in Task Scheduler. Create a
+On Windows you can achieve the same with the built-in Task Scheduler. Create a
 task that runs a small PowerShell command every minute:
 
 ```cmd
