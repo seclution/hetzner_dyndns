@@ -24,10 +24,16 @@ BASIC_AUTH_PASSWORD = os.environ.get("BASIC_AUTH_PASSWORD")
 
 # Cache for zone information to reduce API calls
 ZONE_CACHE = {"zones": None, "expires": 0}
-ZONE_CACHE_TTL = int(os.environ.get("ZONE_CACHE_TTL", "300"))  # seconds
+# Default TTL for the zone list; zone IDs rarely change so cache for a day
+ZONE_CACHE_TTL = int(os.environ.get("ZONE_CACHE_TTL", "86400"))  # seconds
+
+# Cache last seen IP for FQDN/type combinations to avoid redundant updates
+# Mapping of (fqdn.lower(), record_type) -> {"ip": str, "expires": timestamp}
+REQUEST_CACHE = {}
+REQUEST_CACHE_TTL = int(os.environ.get("REQUEST_CACHE_TTL", "300"))  # seconds
 
 # Default TTL for created or updated DNS records
-RECORD_TTL = int(os.environ.get("RECORD_TTL", "86400"))
+RECORD_TTL = int(os.environ.get("RECORD_TTL", "21600"))
 
 # Pre-shared key configuration
 PRE_SHARED_KEY_FILE = "/pre-shared-key"
@@ -246,6 +252,15 @@ def perform_update(
         send_ntfy("Param Error", "Missing subdomain", is_error=True)
         return {"error": "Missing subdomain"}, 400
 
+    # Check request cache before hitting the Hetzner API
+    cache_key = (fqdn.lower(), record_type)
+    now = time.time()
+    cached = REQUEST_CACHE.get(cache_key)
+    if cached and now < cached.get("expires", 0) and cached.get("ip") == ip:
+        app.logger.info("No change for %s from %s (cache)", fqdn, request.remote_addr)
+        send_ntfy("DynDNS Success", f"No change for {fqdn} -> {ip}")
+        return {"status": "unchanged", "ip": ip}, 200
+
     try:
         records_resp = requests.get(
             f"https://dns.hetzner.com/api/v1/records?zone_id={zone_id}",
@@ -282,6 +297,7 @@ def perform_update(
     if record_id and skip_no_change and current_value == ip:
         app.logger.info("No change for %s from %s", fqdn, request.remote_addr)
         send_ntfy("DynDNS Success", f"No change for {fqdn} -> {ip}")
+        REQUEST_CACHE[cache_key] = {"ip": ip, "expires": now + REQUEST_CACHE_TTL}
         return {"status": "unchanged", "ip": ip}, 200
 
     payload = {
@@ -351,6 +367,7 @@ def perform_update(
             "DynDNS Success",
             f"{action} {record_type} record for {fqdn} -> {ip}",
         )
+        REQUEST_CACHE[cache_key] = {"ip": ip, "expires": now + REQUEST_CACHE_TTL}
         return {"status": action.lower(), "ip": ip}, 200
     else:
         app.logger.error(

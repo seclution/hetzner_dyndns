@@ -13,6 +13,14 @@ class DummyResp:
         return self._json
 
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def reset_request_cache(monkeypatch):
+    monkeypatch.setattr(backend_app, "REQUEST_CACHE", {})
+    monkeypatch.setattr(backend_app, "REQUEST_CACHE_TTL", 3600)
+
 def test_update_requires_api_key(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
     monkeypatch.setattr(backend_app, "PRE_SHARED_KEY", "test")
@@ -434,3 +442,44 @@ def test_record_ttl_from_env(monkeypatch):
     )
     assert resp.status_code == 200
     assert captured["ttl"] == 1234
+
+
+def test_request_cache_skips_duplicate(monkeypatch):
+    monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
+    monkeypatch.setattr(backend_app, "PRE_SHARED_KEY", "test")
+    monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
+    monkeypatch.setattr(backend_app, "ZONE_CACHE", {"zones": None, "expires": 0})
+
+    def mock_get(url, headers=None, **kwargs):
+        if url.endswith("/zones"):
+            return DummyResp({"zones": [{"id": "z1", "name": "example.com"}]})
+        elif url.startswith("https://dns.hetzner.com/api/v1/records"):
+            return DummyResp({"records": []})
+        raise AssertionError("unexpected GET " + url)
+
+    call_count = {"post": 0}
+
+    def mock_post(url, headers=None, json=None, **kwargs):
+        call_count["post"] += 1
+        return DummyResp({"record": {"id": "r1"}})
+
+    monkeypatch.setattr(backend_app.requests, "get", mock_get)
+    monkeypatch.setattr(backend_app.requests, "post", mock_post)
+
+    client = backend_app.app.test_client()
+    resp = client.post(
+        "/update",
+        json={"fqdn": "host.example.com", "ip": "1.2.3.4"},
+        headers={"X-Pre-Shared-Key": "test"},
+    )
+    assert resp.status_code == 200
+    assert resp.get_json()["status"] == "created"
+
+    resp = client.post(
+        "/update",
+        json={"fqdn": "host.example.com", "ip": "1.2.3.4"},
+        headers={"X-Pre-Shared-Key": "test"},
+    )
+    assert resp.status_code == 200
+    assert resp.get_json()["status"] == "unchanged"
+    assert call_count["post"] == 1
