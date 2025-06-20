@@ -52,8 +52,6 @@ and [`client/docker-compose.yml`](client/docker-compose.yml).
 
 ---
 
-# Readme
-
 This project provides a lightweight REST API for updating Hetzner DNS A/AAAA records.
 It consists of a backend service that communicates with the Hetzner DNS API and
 an optional client that can be run on remote systems to trigger updates.
