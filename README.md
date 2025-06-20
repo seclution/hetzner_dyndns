@@ -24,10 +24,13 @@ The repository contains two parts:
    sudo chown 1000:1000 backend/pre-shared-key
    chmod 600 backend/pre-shared-key
    ```
+   Start the backend container once so it can write a random key for each
+   hostname to this file. Stop it again after the keys were generated.
 3. In `client/docker-compose.yml` adjust the environment variables:
    - `BACKEND_URL` – URL of the running backend
    - `FQDN` – fully qualified domain name to update
-   - `PRE_SHARED_KEY` – key for this FQDN from `backend/pre-shared-key`
+   - `PRE_SHARED_KEY` – copy the matching key for this FQDN from
+     `backend/pre-shared-key` before starting the client container
    - `INTERVAL` – update interval in seconds (default `60`)
 4. Start the containers **on separate hosts**. The client must never run on the
    same machine as the backend.
