@@ -523,3 +523,61 @@ def test_monitor_check_connections(monkeypatch):
     assert "lost dyndns connection to host.example.com" in errors[0]
     assert "host.example.com" in sent["msg"]
     assert backend_app.ESTABLISHED_CONNECTIONS == {}
+
+
+def test_purge_request_cache(monkeypatch):
+    backend_app.REQUEST_CACHE[("a", "A")] = {"ip": "1.1.1.1", "expires": 0}
+    backend_app.REQUEST_CACHE[("b", "A")] = {"ip": "1.1.1.2", "expires": 20}
+    backend_app.purge_request_cache(now=10)
+    assert ("a", "A") not in backend_app.REQUEST_CACHE
+    assert ("b", "A") in backend_app.REQUEST_CACHE
+
+
+def test_perform_update_purges_cache(monkeypatch):
+    monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
+    monkeypatch.setattr(backend_app, "PRE_SHARED_KEY", "test")
+    monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
+    monkeypatch.setattr(
+        backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
+    )
+
+    def mock_get(url, headers=None, **kwargs):
+        if url.endswith("/zones"):
+            return DummyResp({"zones": [{"id": "z1", "name": "example.com"}]})
+        elif url.startswith("https://dns.hetzner.com/api/v1/records"):
+            return DummyResp({"records": []})
+        raise AssertionError("unexpected GET " + url)
+
+    post_calls = {"count": 0}
+
+    def mock_post(url, headers=None, json=None, **kwargs):
+        post_calls["count"] += 1
+        return DummyResp({"record": {"id": "r1"}})
+
+    monkeypatch.setattr(backend_app.requests, "get", mock_get)
+    monkeypatch.setattr(backend_app.requests, "post", mock_post)
+
+    backend_app.REQUEST_CACHE[("host.example.com", "A")] = {
+        "ip": "1.2.3.4",
+        "expires": 0,
+    }
+
+    called = {}
+    orig_purge = backend_app.purge_request_cache
+
+    def fake_purge(now=None):
+        called["purged"] = True
+        orig_purge(now=now)
+
+    monkeypatch.setattr(backend_app, "purge_request_cache", fake_purge)
+
+    client = backend_app.app.test_client()
+    resp = client.post(
+        "/update",
+        json={"fqdn": "host.example.com", "ip": "1.2.3.4"},
+        headers={"X-Pre-Shared-Key": "test"},
+    )
+    assert resp.status_code == 200
+    assert called.get("purged") is True
+    assert post_calls["count"] == 1
+    assert backend_app.REQUEST_CACHE[("host.example.com", "A")]["ip"] == "1.2.3.4"
