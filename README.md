@@ -112,6 +112,8 @@ The container reads the following variables which should be provided via a
   - `REQUEST_CACHE_TTL` – cache lifetime for IP/FQDN entries to avoid redundant updates (default `300`)
 - `BASIC_AUTH_USERNAME` / `BASIC_AUTH_PASSWORD` – enable HTTP basic auth for the update endpoints
 
+Numeric values that cannot be parsed fall back to the defaults above and generate a warning in the log.
+
 ## Client
 
 A small Python script is provided in `client/update_dns.py`.  It sends a request
