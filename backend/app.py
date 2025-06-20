@@ -237,10 +237,21 @@ def _ensure_monitor_thread() -> None:
         _MONITOR_THREAD.start()
 
 
+def purge_request_cache(*, now: float | None = None) -> None:
+    """Remove expired entries from :data:`REQUEST_CACHE`."""
+    if now is None:
+        now = time.time()
+    for key, value in list(REQUEST_CACHE.items()):
+        if value.get("expires", 0) < now:
+            REQUEST_CACHE.pop(key, None)
+
+
 def perform_update(
     fqdn: str, ip: str, record_type: str = "A", *, skip_no_change: bool = False
 ):
     """Create or update a DNS record and return the action performed."""
+
+    purge_request_cache()
 
     domain_parts = fqdn.split(".")
     if len(domain_parts) < 2:
