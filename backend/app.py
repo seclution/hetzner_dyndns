@@ -230,7 +230,7 @@ def update_connection(url: str, *, now: float | None = None) -> None:
     start_thread = False
     with _CONNECTION_LOCK:
         if url not in ESTABLISHED_CONNECTIONS:
-            app.logger.info("dyndns connection established with %s", url)
+            app.logger.info("DynDNS connection established with %s", url)
             start_thread = True
         ESTABLISHED_CONNECTIONS[url] = now
     if start_thread:
@@ -247,7 +247,7 @@ def check_connections(*, now: float | None = None) -> None:
             if now - ts > LOST_CONNECTION_TIMEOUT:
                 expired.append(url)
     for url in expired:
-        app.logger.error("lost dyndns connection to %s", url)
+        app.logger.error("Lost DynDNS connection to %s", url)
         send_ntfy("DynDNS Lost Connection", f"Lost dyndns connection to {url}", is_error=True)
         with _CONNECTION_LOCK:
             ESTABLISHED_CONNECTIONS.pop(url, None)
