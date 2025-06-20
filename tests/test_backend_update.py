@@ -35,6 +35,19 @@ def set_pre_shared_keys(monkeypatch):
         },
     )
 
+@pytest.fixture(autouse=True)
+def allow_fqdns(monkeypatch):
+    monkeypatch.setattr(
+        backend_app,
+        "ALLOWED_FQDNS",
+        [
+            "host.example.com",
+            "host.other.com",
+            "host.example.co.uk",
+            "example.com",
+        ],
+    )
+
 def test_update_requires_api_key(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
     monkeypatch.setattr(
@@ -238,7 +251,7 @@ def test_ip_version_mismatch(monkeypatch):
 
 def test_disallowed_domain(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "ALLOWED_ZONES", ["example.com"])
+    monkeypatch.setattr(backend_app, "ALLOWED_FQDNS", ["host.example.com"])
     monkeypatch.setattr(
         backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
     )
@@ -349,8 +362,7 @@ def test_basic_auth(monkeypatch):
 
 def test_nic_update(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "BASIC_AUTH_USERNAME", "u")
-    monkeypatch.setattr(backend_app, "BASIC_AUTH_PASSWORD", "p")
+    monkeypatch.setattr(backend_app, "PRE_SHARED_KEYS", {"host.example.com": "secret"})
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
     monkeypatch.setattr(
         backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
@@ -371,7 +383,7 @@ def test_nic_update(monkeypatch):
 
     import base64
 
-    cred = base64.b64encode(b"u:p").decode()
+    cred = base64.b64encode(b"host:secret").decode()
     client = backend_app.app.test_client()
     resp = client.get(
         "/nic/update?hostname=host.example.com&myip=1.2.3.4",
@@ -383,8 +395,7 @@ def test_nic_update(monkeypatch):
 
 def test_nic_update_query_auth(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
-    monkeypatch.setattr(backend_app, "BASIC_AUTH_USERNAME", "u")
-    monkeypatch.setattr(backend_app, "BASIC_AUTH_PASSWORD", "p")
+    monkeypatch.setattr(backend_app, "PRE_SHARED_KEYS", {"host.example.com": "secret"})
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
     monkeypatch.setattr(
         backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
@@ -405,7 +416,7 @@ def test_nic_update_query_auth(monkeypatch):
 
     client = backend_app.app.test_client()
     resp = client.get(
-        "/nic/update?hostname=host.example.com&myip=1.2.3.4&user=u&pass=p",
+        "/nic/update?hostname=host.example.com&myip=1.2.3.4&user=host&pass=secret",
     )
     assert resp.status_code == 200
     assert resp.data.decode().startswith("good ")

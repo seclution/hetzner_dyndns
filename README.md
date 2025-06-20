@@ -14,8 +14,10 @@ The repository contains two parts:
    - `HETZNER_TOKEN` – your Hetzner DNS API token
    - `NTFY_URL` – base URL of your NTFY instance
    - `NTFY_TOPIC` – topic name for notifications
-2. List your hostnames in `REGISTERED_FQDNS` inside
-   `backend/.secrets` and create a writable `backend/pre-shared-key` file:
+2. List your hostnames in both `REGISTERED_FQDNS` and `ALLOWED_FQDNS` inside
+   `backend/.secrets`. Create a writable `backend/pre-shared-key` file:
+
+   If `ALLOWED_FQDNS` is empty, the backend performs no updates.
 
    ```bash
    touch backend/pre-shared-key
@@ -117,8 +119,8 @@ The container reads the following variables which should be provided via a
 - `LOG_MAX_BYTES` – maximum size of the log file before rotation (default 1048576)
 - `LOG_BACKUP_COUNT` – number of rotated log files to keep (default 3)
 - `LISTEN_PORT` – port the application listens on (default `80`)
-- `ALLOWED_ZONES` – comma-separated list of domain zones allowed for updates
-  (empty means all zones are allowed)
+- `ALLOWED_FQDNS` – comma-separated list of allowed fully qualified domain names.
+  If empty, no updates are performed.
   - `RECORD_TTL` – TTL for DNS records in seconds (default `21600`)
   - `ZONE_CACHE_TTL` – how long the zone list is cached in seconds (default `86400`)
   - `REQUEST_CACHE_TTL` – cache lifetime for IP/FQDN entries to avoid redundant updates (default `300`)
@@ -192,11 +194,13 @@ Adjust the URL, `fqdn` and pre-shared key as needed.
 ### Router setup
 
 Many consumer routers support custom DynDNS services using the dyndns2 protocol.
-Point them to your backend's `/nic/update` endpoint. Example URLs:
+Point them to your backend's `/nic/update` endpoint. Use the first label of the
+hostname as the username and the matching pre-shared key as the password.
+Example URLs:
 
-- **Fritz!Box** – `https://user:pass@your-backend.example.com/nic/update?hostname=host.example.com`
-- **Speedport** – `https://your-backend.example.com/nic/update?hostname=host.example.com&user=user&pass=pass`
-- **Vodafone Station** – `https://user:pass@your-backend.example.com/nic/update?hostname=host.example.com&myip=%IP%`
+- **Fritz!Box** – `https://host:secret@your-backend.example.com/nic/update?hostname=host.example.com`
+- **Speedport** – `https://your-backend.example.com/nic/update?hostname=host.example.com&user=host&pass=secret`
+- **Vodafone Station** – `https://host:secret@your-backend.example.com/nic/update?hostname=host.example.com&myip=%IP%`
 
 ## Docker Compose
 
