@@ -1,9 +1,7 @@
-FROM python:3.11-slim
+FROM python:3.11-alpine
 WORKDIR /client
 COPY requirements.txt ./
-RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates \
- && rm -rf /var/lib/apt/lists/* \
+RUN apk add --no-cache ca-certificates \
  && pip install --no-cache-dir -r requirements.txt
 COPY update_dns.py ./
 ENTRYPOINT ["python", "update_dns.py"]

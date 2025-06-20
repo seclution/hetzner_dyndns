@@ -6,50 +6,91 @@ import requests
 import secrets
 import ipaddress
 import time
+import threading
 
 app = Flask(__name__)
+
+
+def _get_int_env(name: str, default: int) -> int:
+    value = os.environ.get(name, str(default))
+    try:
+        return int(value)
+    except ValueError:
+        logging.getLogger(__name__).warning(
+            "Invalid %s=%r, using default %s", name, value, default
+        )
+        return default
 
 HETZNER_TOKEN = os.environ.get("HETZNER_TOKEN")
 NTFY_URL = os.environ.get("NTFY_URL")
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC")
 NTFY_USERNAME = os.environ.get("NTFY_USERNAME")
 NTFY_PASSWORD = os.environ.get("NTFY_PASSWORD")
-ALLOWED_ZONES = [
-    z.strip().lower()
-    for z in os.environ.get("ALLOWED_ZONES", "").split(",")
-    if z.strip()
+ALLOWED_FQDNS = [
+    h.strip().lower()
+    for h in os.environ.get("ALLOWED_FQDNS", "").split(",")
+    if h.strip()
 ]
 BASIC_AUTH_USERNAME = os.environ.get("BASIC_AUTH_USERNAME")
 BASIC_AUTH_PASSWORD = os.environ.get("BASIC_AUTH_PASSWORD")
 
 # Cache for zone information to reduce API calls
 ZONE_CACHE = {"zones": None, "expires": 0}
-ZONE_CACHE_TTL = int(os.environ.get("ZONE_CACHE_TTL", "300"))  # seconds
+# Default TTL for the zone list; zone IDs rarely change so cache for a day
+ZONE_CACHE_TTL = _get_int_env("ZONE_CACHE_TTL", 86400)  # seconds
+
+# Cache last seen IP for FQDN/type combinations to avoid redundant updates
+# Mapping of (fqdn.lower(), record_type) -> {"ip": str, "expires": timestamp}
+REQUEST_CACHE = {}
+REQUEST_CACHE_TTL = _get_int_env("REQUEST_CACHE_TTL", 300)  # seconds
 
 # Default TTL for created or updated DNS records
-RECORD_TTL = int(os.environ.get("RECORD_TTL", "86400"))
+RECORD_TTL = _get_int_env("RECORD_TTL", 21600)
 
 # Pre-shared key configuration
 PRE_SHARED_KEY_FILE = "/pre-shared-key"
+REGISTERED_FQDNS = [
+    h.strip().lower()
+    for h in os.environ.get("REGISTERED_FQDNS", "").split(",")
+    if h.strip()
+]
+
+# Connection monitoring configuration
+LOST_CONNECTION_TIMEOUT = _get_int_env("LOST_CONNECTION_TIMEOUT", 3 * 3600)
+CONNECTION_CHECK_INTERVAL = _get_int_env("CONNECTION_CHECK_INTERVAL", 60)
+
+# Mapping of url -> last update timestamp
+ESTABLISHED_CONNECTIONS = {}
+_CONNECTION_LOCK = threading.Lock()
+_MONITOR_THREAD = None
 
 
-def _load_pre_shared_key() -> str:
-    key = ""
+def _load_pre_shared_keys(urls: list[str]) -> dict[str, str]:
+    keys: dict[str, str] = {}
     try:
         if os.path.exists(PRE_SHARED_KEY_FILE):
             with open(PRE_SHARED_KEY_FILE, "r") as f:
-                key = f.read().strip()
+                for line in f:
+                    parts = line.strip().split()
+                    if len(parts) == 2:
+                        keys[parts[0].lower()] = parts[1]
     except Exception:  # pragma: no cover - shouldn't happen
-        app.logger.exception("Failed to read API key")
-    if not key:
-        key = secrets.token_urlsafe(32)
+        app.logger.exception("Failed to read API key file")
+    changed = False
+    for url in urls:
+        url = url.lower()
+        if url not in keys:
+            keys[url] = secrets.token_urlsafe(32)
+            changed = True
+    if changed:
         try:
             with open(PRE_SHARED_KEY_FILE, "w") as f:
-                f.write(key)
+                for host, key in keys.items():
+                    f.write(f"{host} {key}\n")
             os.chmod(PRE_SHARED_KEY_FILE, 0o600)
         except Exception:  # pragma: no cover - shouldn't happen
-            app.logger.exception("Failed to write API key")
-    return key
+            app.logger.exception("Failed to write API key file")
+    return keys
 
 
 # Logging configuration
@@ -59,8 +100,8 @@ DEBUG_LOGGING = os.environ.get("DEBUG_LOGGING", "0").lower() in (
     "yes",
 )
 LOG_FILE = os.environ.get("LOG_FILE")
-LOG_MAX_BYTES = int(os.environ.get("LOG_MAX_BYTES", str(1 * 1024 * 1024)))
-LOG_BACKUP_COUNT = int(os.environ.get("LOG_BACKUP_COUNT", "3"))
+LOG_MAX_BYTES = _get_int_env("LOG_MAX_BYTES", 1 * 1024 * 1024)
+LOG_BACKUP_COUNT = _get_int_env("LOG_BACKUP_COUNT", 3)
 
 log_level = logging.DEBUG if DEBUG_LOGGING else logging.INFO
 _log_handlers = [logging.StreamHandler()]
@@ -88,7 +129,7 @@ if _file_handler_error:
 
 app.logger.setLevel(log_level)
 
-PRE_SHARED_KEY = _load_pre_shared_key()
+PRE_SHARED_KEYS = _load_pre_shared_keys(REGISTERED_FQDNS)
 
 
 def get_zones(force_refresh: bool = False):
@@ -109,7 +150,7 @@ def get_zones(force_refresh: bool = False):
         )
     except requests.RequestException as exc:
         app.logger.exception("Zone fetch exception")
-        send_ntfy("Zone Fetch Error", str(exc))
+        send_ntfy("Zone Fetch Error", str(exc), is_error=True)
         # If we have cached zones, return them even on failure
         if ZONE_CACHE["zones"] is not None:
             return ZONE_CACHE["zones"]
@@ -117,7 +158,7 @@ def get_zones(force_refresh: bool = False):
 
     if resp.status_code != 200:
         app.logger.error("Zone fetch failed: %s", resp.text)
-        send_ntfy("Zone Fetch Failed", resp.text)
+        send_ntfy("Zone Fetch Failed", resp.text, is_error=True)
         if ZONE_CACHE["zones"] is not None:
             return ZONE_CACHE["zones"]
         return None
@@ -150,7 +191,15 @@ def find_zone(fqdn: str, zones):
     return None, None, None
 
 
-def send_ntfy(title: str, message: str) -> None:
+def send_ntfy(title: str, message: str, *, is_error: bool = False) -> None:
+    """Send a notification via ntfy.
+
+    Success messages are only emitted when ``DEBUG_LOGGING`` is enabled. Error
+    notifications are always sent.
+    """
+
+    if not DEBUG_LOGGING and not is_error:
+        return
     if not NTFY_URL:
         return
     headers = {"Title": title} if title else {}
@@ -169,37 +218,82 @@ def send_ntfy(title: str, message: str) -> None:
         app.logger.exception("Failed to send ntfy message")
 
 
+def update_connection(url: str, *, now: float | None = None) -> None:
+    """Update or create the timestamp entry for *url*."""
+    if now is None:
+        now = time.time()
+    url = url.lower()
+    start_thread = False
+    with _CONNECTION_LOCK:
+        if url not in ESTABLISHED_CONNECTIONS:
+            app.logger.info("dyndns connection established with %s", url)
+            start_thread = True
+        ESTABLISHED_CONNECTIONS[url] = now
+    if start_thread:
+        _ensure_monitor_thread()
+
+
+def check_connections(*, now: float | None = None) -> None:
+    """Check for lost connections and emit notifications."""
+    if now is None:
+        now = time.time()
+    expired = []
+    with _CONNECTION_LOCK:
+        for url, ts in list(ESTABLISHED_CONNECTIONS.items()):
+            if now - ts > LOST_CONNECTION_TIMEOUT:
+                expired.append(url)
+    for url in expired:
+        app.logger.error("lost dyndns connection to %s", url)
+        send_ntfy("DynDNS Lost Connection", f"Lost dyndns connection to {url}", is_error=True)
+        with _CONNECTION_LOCK:
+            ESTABLISHED_CONNECTIONS.pop(url, None)
+
+
+def _monitor_loop() -> None:
+    while True:
+        time.sleep(CONNECTION_CHECK_INTERVAL)
+        check_connections()
+
+
+def _ensure_monitor_thread() -> None:
+    global _MONITOR_THREAD
+    if _MONITOR_THREAD is None and CONNECTION_CHECK_INTERVAL > 0:
+        _MONITOR_THREAD = threading.Thread(target=_monitor_loop, daemon=True)
+        _MONITOR_THREAD.start()
+
+
+def purge_request_cache(*, now: float | None = None) -> None:
+    """Remove expired entries from :data:`REQUEST_CACHE`."""
+    if now is None:
+        now = time.time()
+    for key, value in list(REQUEST_CACHE.items()):
+        if value.get("expires", 0) < now:
+            REQUEST_CACHE.pop(key, None)
+
+
 def perform_update(
     fqdn: str, ip: str, record_type: str = "A", *, skip_no_change: bool = False
 ):
     """Create or update a DNS record and return the action performed."""
+
+    purge_request_cache()
 
     domain_parts = fqdn.split(".")
     if len(domain_parts) < 2:
         app.logger.error(
             "Request from %s invalid fqdn: %s", request.remote_addr, fqdn
         )
-        send_ntfy("Param Error", "Invalid FQDN")
+        send_ntfy("Param Error", "Invalid FQDN", is_error=True)
         return {"error": "Invalid FQDN"}, 400
 
-    if ALLOWED_ZONES:
-        allowed = False
-        fqdn_lower = fqdn.lower()
-        for zone in ALLOWED_ZONES:
-            zone_lower = zone.lower()
-            if fqdn_lower == zone_lower or fqdn_lower.endswith(
-                "." + zone_lower
-            ):
-                allowed = True
-                break
-        if not allowed:
-            app.logger.error(
-                "Request from %s disallowed domain: %s",
-                request.remote_addr,
-                fqdn,
-            )
-            send_ntfy("Domain Not Allowed", fqdn)
-            return {"error": "Domain not allowed"}, 403
+    if not ALLOWED_FQDNS or fqdn.lower() not in ALLOWED_FQDNS:
+        app.logger.error(
+            "Request from %s disallowed fqdn: %s",
+            request.remote_addr,
+            fqdn,
+        )
+        send_ntfy("FQDN Not Allowed", fqdn, is_error=True)
+        return {"error": "FQDN not allowed"}, 403
 
     zones = get_zones()
     if zones is None:
@@ -217,17 +311,10 @@ def perform_update(
         app.logger.error(
             "Zone not found for %s from %s", fqdn, request.remote_addr
         )
-        send_ntfy("Zone Not Found", f"No matching zone for {fqdn}")
+        send_ntfy("Zone Not Found", f"No matching zone for {fqdn}", is_error=True)
         return {"error": "Zone not found"}, 404
 
-    if ALLOWED_ZONES and zone_name.lower() not in ALLOWED_ZONES:
-        app.logger.error(
-            "Request from %s disallowed domain: %s",
-            request.remote_addr,
-            zone_name,
-        )
-        send_ntfy("Domain Not Allowed", zone_name)
-        return {"error": "Domain not allowed"}, 403
+
 
     if subdomain == "":
         app.logger.error(
@@ -235,8 +322,17 @@ def perform_update(
             request.remote_addr,
             fqdn,
         )
-        send_ntfy("Param Error", "Missing subdomain")
+        send_ntfy("Param Error", "Missing subdomain", is_error=True)
         return {"error": "Missing subdomain"}, 400
+
+    # Check request cache before hitting the Hetzner API
+    cache_key = (fqdn.lower(), record_type)
+    now = time.time()
+    cached = REQUEST_CACHE.get(cache_key)
+    if cached and now < cached.get("expires", 0) and cached.get("ip") == ip:
+        app.logger.info("No change for %s from %s (cache)", fqdn, request.remote_addr)
+        send_ntfy("DynDNS Success", f"No change for {fqdn} -> {ip}")
+        return {"status": "unchanged", "ip": ip}, 200
 
     try:
         records_resp = requests.get(
@@ -248,7 +344,7 @@ def perform_update(
         app.logger.exception(
             "Records fetch exception for %s from %s", fqdn, request.remote_addr
         )
-        send_ntfy("Records Fetch Error", str(exc))
+        send_ntfy("Records Fetch Error", str(exc), is_error=True)
         return {"error": "Failed to fetch records", "detail": str(exc)}, 500
     if records_resp.status_code != 200:
         app.logger.error(
@@ -257,7 +353,7 @@ def perform_update(
             request.remote_addr,
             records_resp.text,
         )
-        send_ntfy("Records Fetch Failed", records_resp.text)
+        send_ntfy("Records Fetch Failed", records_resp.text, is_error=True)
         return {"error": "Failed to fetch records"}, 500
 
     record_id = None
@@ -274,6 +370,7 @@ def perform_update(
     if record_id and skip_no_change and current_value == ip:
         app.logger.info("No change for %s from %s", fqdn, request.remote_addr)
         send_ntfy("DynDNS Success", f"No change for {fqdn} -> {ip}")
+        REQUEST_CACHE[cache_key] = {"ip": ip, "expires": now + REQUEST_CACHE_TTL}
         return {"status": "unchanged", "ip": ip}, 200
 
     payload = {
@@ -301,7 +398,7 @@ def perform_update(
                 fqdn,
                 request.remote_addr,
             )
-            send_ntfy("Update Record Error", str(exc))
+            send_ntfy("Update Record Error", str(exc), is_error=True)
             return {
                 "error": "Failed to update record",
                 "detail": str(exc),
@@ -324,7 +421,7 @@ def perform_update(
                 fqdn,
                 request.remote_addr,
             )
-            send_ntfy("Create Record Error", str(exc))
+            send_ntfy("Create Record Error", str(exc), is_error=True)
             return {
                 "error": "Failed to create record",
                 "detail": str(exc),
@@ -343,6 +440,7 @@ def perform_update(
             "DynDNS Success",
             f"{action} {record_type} record for {fqdn} -> {ip}",
         )
+        REQUEST_CACHE[cache_key] = {"ip": ip, "expires": now + REQUEST_CACHE_TTL}
         return {"status": action.lower(), "ip": ip}, 200
     else:
         app.logger.error(
@@ -352,7 +450,7 @@ def perform_update(
             request.remote_addr,
             resp.text,
         )
-        send_ntfy(f"{action} Failed", resp.text)
+        send_ntfy(f"{action} Failed", resp.text, is_error=True)
         return {"error": "API failure", "detail": resp.text}, 500
 
 
@@ -360,20 +458,6 @@ def perform_update(
 def update():
     if not HETZNER_TOKEN:
         abort(500, "Backend not configured")
-
-    auth_ok = False
-    if PRE_SHARED_KEY and request.headers.get("X-Pre-Shared-Key") == PRE_SHARED_KEY:
-        auth_ok = True
-    if not auth_ok and BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD:
-        auth = request.authorization
-        if (
-            auth
-            and auth.username == BASIC_AUTH_USERNAME
-            and auth.password == BASIC_AUTH_PASSWORD
-        ):
-            auth_ok = True
-    if not auth_ok:
-        return {"error": "Unauthorized"}, 401
 
     data = request.get_json(silent=True) or {}
     if DEBUG_LOGGING:
@@ -392,8 +476,23 @@ def update():
     url = data.get("fqdn") or data.get("url")
     if not url:
         app.logger.error("Request from %s missing fqdn", request.remote_addr)
-        send_ntfy("Param Error", "Missing FQDN")
+        send_ntfy("Param Error", "Missing FQDN", is_error=True)
         return {"error": "Missing FQDN"}, 400
+
+    auth_ok = False
+    expected_key = PRE_SHARED_KEYS.get(url.lower())
+    if expected_key and request.headers.get("X-Pre-Shared-Key") == expected_key:
+        auth_ok = True
+    if not auth_ok and BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD:
+        auth = request.authorization
+        if (
+            auth
+            and auth.username == BASIC_AUTH_USERNAME
+            and auth.password == BASIC_AUTH_PASSWORD
+        ):
+            auth_ok = True
+    if not auth_ok:
+        return {"error": "Unauthorized"}, 401
 
     record_type = data.get("type", "A").upper()
     if record_type not in ("A", "AAAA"):
@@ -402,7 +501,7 @@ def update():
             request.remote_addr,
             record_type,
         )
-        send_ntfy("Param Error", "Invalid type")
+        send_ntfy("Param Error", "Invalid type", is_error=True)
         return {"error": "Invalid type"}, 400
 
     ip = data.get("ip")
@@ -419,21 +518,23 @@ def update():
         app.logger.error(
             "Request from %s invalid ip: %s", request.remote_addr, ip
         )
-        send_ntfy("Param Error", "Invalid IP")
+        send_ntfy("Param Error", "Invalid IP", is_error=True)
         return {"error": "Invalid IP"}, 400
 
     if record_type == "A" and ip_obj.version != 4:
         app.logger.error(
             "Request from %s ip version mismatch: %s", request.remote_addr, ip
         )
-        send_ntfy("Param Error", "IP version mismatch")
+        send_ntfy("Param Error", "IP version mismatch", is_error=True)
         return {"error": "IP version mismatch"}, 400
     if record_type == "AAAA" and ip_obj.version != 6:
         app.logger.error(
             "Request from %s ip version mismatch: %s", request.remote_addr, ip
         )
-        send_ntfy("Param Error", "IP version mismatch")
+        send_ntfy("Param Error", "IP version mismatch", is_error=True)
         return {"error": "IP version mismatch"}, 400
+
+    update_connection(url)
 
     result, status = perform_update(url, ip, record_type)
     return jsonify(result), status
@@ -453,15 +554,28 @@ def nic_update():
         user = request.args.get("user")
         pw = request.args.get("pass")
 
-    if not (user == BASIC_AUTH_USERNAME and pw == BASIC_AUTH_PASSWORD):
+    hostname = request.args.get("hostname") or request.form.get("hostname")
+    if not hostname:
+        return "nohost", 400
+
+    expected_user = hostname.split(".")[0]
+    expected_pw = PRE_SHARED_KEYS.get(hostname.lower())
+    auth_ok = False
+    if user == expected_user and pw == expected_pw:
+        auth_ok = True
+    elif BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD:
+        if user == BASIC_AUTH_USERNAME and pw == BASIC_AUTH_PASSWORD:
+            auth_ok = True
+    if not auth_ok:
         return "badauth", 401
 
-    hostname = request.args.get("hostname") or request.form.get("hostname")
     ip = request.args.get("myip") or request.form.get("myip")
     if not ip:
         ip = request.remote_addr
 
     record_type = "AAAA" if ":" in ip else "A"
+
+    update_connection(hostname)
 
     result, status = perform_update(
         hostname, ip, record_type, skip_no_change=True
@@ -474,5 +588,5 @@ def nic_update():
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("LISTEN_PORT", "80"))
+    port = _get_int_env("LISTEN_PORT", 80)
     app.run(host="0.0.0.0", port=port, debug=DEBUG_LOGGING)

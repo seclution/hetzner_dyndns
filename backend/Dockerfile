@@ -1,7 +1,7 @@
-FROM python:3.11-slim
+FROM python:3.11-alpine
 
 # create non-root user
-RUN adduser --disabled-password --gecos '' appuser
+RUN adduser -D -g '' appuser
 
 WORKDIR /app
 COPY requirements.txt ./
@@ -20,4 +20,4 @@ ENV LISTEN_PORT=80
 # drop privileges
 USER appuser
 
-CMD ["gunicorn", "-b", "0.0.0.0:80", "app:app"]
+CMD ["sh", "-c", "gunicorn -b 0.0.0.0:${LISTEN_PORT:-80} app:app"]
