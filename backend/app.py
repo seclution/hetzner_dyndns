@@ -296,10 +296,14 @@ def perform_update(
         send_ntfy("Param Error", "Invalid FQDN", is_error=True)
         return {"error": "Invalid FQDN"}, 400
 
-    if DEBUG_LOGGING:
-        app.logger.debug("perform_update fqdn=%s allowed=%s", fqdn, ALLOWED_FQDNS)
-
     if not ALLOWED_FQDNS or fqdn.lower() not in ALLOWED_FQDNS:
+        app.logger.error(
+            "Request from %s attempted update but backend not configured for updates",
+            request.remote_addr,
+        )
+        send_ntfy("Backend Not Configured", fqdn, is_error=True)
+        return {"error": "backend not configured for updates"}, 500
+    if fqdn.lower() not in ALLOWED_FQDNS:
         app.logger.error(
             "Request from %s disallowed fqdn: %s",
             request.remote_addr,

@@ -265,6 +265,24 @@ def test_disallowed_domain(monkeypatch):
     assert resp.status_code == 403
 
 
+def test_backend_not_configured(monkeypatch):
+    monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
+    monkeypatch.setattr(backend_app, "ALLOWED_FQDNS", [])
+    monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
+    monkeypatch.setattr(
+        backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
+    )
+
+    client = backend_app.app.test_client()
+    resp = client.post(
+        "/update",
+        json={"fqdn": "host.example.com", "ip": "1.2.3.4"},
+        headers={"X-Pre-Shared-Key": "test"},
+    )
+    assert resp.status_code == 500
+    assert resp.get_json().get("error") == "backend not configured for updates"
+
+
 def test_update_multi_level_zone(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
     monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
