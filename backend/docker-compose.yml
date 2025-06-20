@@ -3,6 +3,7 @@ services:
   backend:
     image: nmbit/hetzner-dyndns-backend
     container_name: dyndns
+    restart: unless-stopped
     # build:
     #   context: .
     #   dockerfile: Dockerfile

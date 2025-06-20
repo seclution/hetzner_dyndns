@@ -32,6 +32,9 @@ docker compose -f backend/docker-compose.yml up  # on server side
 docker compose -f client/docker-compose.yml up  # on client side
 ```
 
+Both compose files use a `restart: unless-stopped` policy so the containers
+automatically start again after a Docker restart.
+
 Compose files live in [`backend/docker-compose.yml`](backend/docker-compose.yml)
 and [`client/docker-compose.yml`](client/docker-compose.yml).
 
