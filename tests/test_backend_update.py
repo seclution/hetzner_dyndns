@@ -646,3 +646,77 @@ def test_perform_update_purges_cache(monkeypatch):
     assert called.get("purged") is True
     assert post_calls["count"] == 1
     assert backend_app.REQUEST_CACHE[("host.example.com", "A")]["ip"] == "1.2.3.4"
+
+
+def test_update_connection_on_success(monkeypatch):
+    monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
+    monkeypatch.setattr(backend_app, "perform_update", lambda *a, **k: ({"status": "created", "ip": "1.2.3.4"}, 200))
+    called = {}
+
+    def fake_update(url):
+        called["url"] = url
+
+    monkeypatch.setattr(backend_app, "update_connection", fake_update)
+
+    client = backend_app.app.test_client()
+    resp = client.post(
+        "/update",
+        json={"fqdn": "host.example.com", "ip": "1.2.3.4"},
+        headers={"X-Pre-Shared-Key": "test"},
+    )
+    assert resp.status_code == 200
+    assert called.get("url") == "host.example.com"
+
+
+def test_update_connection_not_logged_on_failure(monkeypatch):
+    monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
+    monkeypatch.setattr(backend_app, "perform_update", lambda *a, **k: ({"error": "fail"}, 500))
+    called = {}
+    monkeypatch.setattr(backend_app, "update_connection", lambda *a, **k: called.setdefault("called", True))
+
+    client = backend_app.app.test_client()
+    resp = client.post(
+        "/update",
+        json={"fqdn": "host.example.com", "ip": "1.2.3.4"},
+        headers={"X-Pre-Shared-Key": "test"},
+    )
+    assert resp.status_code == 500
+    assert "called" not in called
+
+
+def test_nic_update_logs_connection_on_success(monkeypatch):
+    monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
+    monkeypatch.setattr(backend_app, "PRE_SHARED_KEYS", {"host.example.com": "secret"})
+    monkeypatch.setattr(backend_app, "perform_update", lambda *a, **k: ({"status": "updated", "ip": "1.2.3.4"}, 200))
+    called = {}
+    monkeypatch.setattr(backend_app, "update_connection", lambda url: called.setdefault("url", url))
+
+    import base64
+
+    cred = base64.b64encode(b"host:secret").decode()
+    client = backend_app.app.test_client()
+    resp = client.get(
+        "/nic/update?hostname=host.example.com&myip=1.2.3.4",
+        headers={"Authorization": f"Basic {cred}"},
+    )
+    assert resp.status_code == 200
+    assert called.get("url") == "host.example.com"
+
+
+def test_nic_update_no_connection_on_failure(monkeypatch):
+    monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
+    monkeypatch.setattr(backend_app, "PRE_SHARED_KEYS", {"host.example.com": "secret"})
+    monkeypatch.setattr(backend_app, "perform_update", lambda *a, **k: ({"error": "fail"}, 500))
+    called = {}
+    monkeypatch.setattr(backend_app, "update_connection", lambda url: called.setdefault("url", url))
+
+    import base64
+
+    cred = base64.b64encode(b"host:secret").decode()
+    client = backend_app.app.test_client()
+    resp = client.get(
+        "/nic/update?hostname=host.example.com&myip=1.2.3.4",
+        headers={"Authorization": f"Basic {cred}"},
+    )
+    assert resp.status_code == 500
+    assert "url" not in called
