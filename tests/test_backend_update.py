@@ -326,6 +326,43 @@ def test_root_domain_rejected(monkeypatch):
     assert resp.status_code == 400
 
 
+def test_single_label_rejected(monkeypatch):
+    monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
+    monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
+    monkeypatch.setattr(
+        backend_app,
+        "PRE_SHARED_KEYS",
+        {"singlelabel": "test"},
+    )
+
+    client = backend_app.app.test_client()
+    resp = client.post(
+        "/update",
+        json={"fqdn": "singlelabel", "ip": "1.2.3.4"},
+        headers={"X-Pre-Shared-Key": "test"},
+    )
+    assert resp.status_code == 400
+
+
+def test_root_domain_post_rejected(monkeypatch):
+    monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
+    monkeypatch.setattr(backend_app, "PRE_SHARED_KEYS", {"example.com": "secret"})
+    monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
+
+    def mock_get(url, headers=None, **kwargs):
+        if url.endswith("/zones"):
+            return DummyResp({"zones": [{"id": "z1", "name": "example.com"}]})
+        raise AssertionError("unexpected GET " + url)
+
+    monkeypatch.setattr(backend_app.requests, "get", mock_get)
+
+    client = backend_app.app.test_client()
+    resp = client.get(
+        "/nic/update?hostname=example.com&myip=1.2.3.4&user=example&pass=secret",
+    )
+    assert resp.status_code == 400
+
+
 def test_basic_auth(monkeypatch):
     monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
     monkeypatch.setattr(backend_app, "BASIC_AUTH_USERNAME", "u")
