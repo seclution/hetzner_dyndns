@@ -60,8 +60,10 @@ an optional client that can be run on remote systems to trigger updates.
 
 ## Backend
 
-The backend is a small Flask application with a single `/update` endpoint.  The
-endpoint accepts JSON payloads of the form:
+The backend is a small Flask application exposing two endpoints. `/update`
+accepts JSON payloads while `/nic/update` follows the dyndns2 protocol for
+routers and other dynamic DNS clients. The `/update` endpoint expects JSON of
+the form:
 
 ```json
 { "fqdn": "host.example.com", "ip": "1.2.3.4" }
