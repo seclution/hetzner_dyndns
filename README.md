@@ -25,11 +25,19 @@ The repository contains two parts:
    - `BACKEND_URL` – URL of the running backend
    - `FQDN` – fully qualified domain name to update
    - `PRE_SHARED_KEY` – value from `backend/pre-shared-key` (created on first backend start)
-4. Start the containers:
+4. Start the containers **on separate hosts**. The client must never run on the
+   same machine as the backend.
+
+**Server host**
 
 ```bash
-docker compose -f backend/docker-compose.yml up  # on server side
-docker compose -f client/docker-compose.yml up  # on client side
+docker compose -f backend/docker-compose.yml up
+```
+
+**Client host**
+
+```bash
+docker compose -f client/docker-compose.yml up
 ```
 
 Both compose files use a `restart: unless-stopped` policy so the containers
@@ -189,7 +197,8 @@ The compose file already includes an `env_file` entry pointing to
 `backend/.secrets`, so there is no need to pass it explicitly on the
 command line.
 
-Run the client (typically on another host) and point it to your backend:
+Run the client on a *different* host and point it to your backend. The backend
+and client must never run on the same machine:
 
 ```bash
 docker compose -f client/docker-compose.yml up
