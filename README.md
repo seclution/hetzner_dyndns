@@ -121,9 +121,9 @@ The container reads the following variables which should be provided via a
 - `LISTEN_PORT` – port the application listens on (default `80`)
 - `ALLOWED_FQDNS` – comma-separated list of allowed fully qualified domain names.
   If empty, no updates are performed.
-  - `RECORD_TTL` – TTL for DNS records in seconds (default `21600`)
-  - `ZONE_CACHE_TTL` – how long the zone list is cached in seconds (default `86400`)
-  - `REQUEST_CACHE_TTL` – cache lifetime for IP/FQDN entries to avoid redundant updates (default `300`)
+- `RECORD_TTL` – TTL for DNS records in seconds (default `21600`)
+- `ZONE_CACHE_TTL` – how long the zone list is cached in seconds (default `86400`)
+- `REQUEST_CACHE_TTL` – cache lifetime for IP/FQDN entries to avoid redundant updates (default `300`)
 - `LOST_CONNECTION_TIMEOUT` – seconds without updates before a client is considered offline (default `10800`)
 - `CONNECTION_CHECK_INTERVAL` – how often to check for lost connections (default `60`)
 - `BASIC_AUTH_USERNAME` / `BASIC_AUTH_PASSWORD` – enable HTTP basic auth for the update endpoints
