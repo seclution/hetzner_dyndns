@@ -26,6 +26,7 @@ The repository contains two parts:
    - `BACKEND_URL` – URL of the running backend
    - `FQDN` – fully qualified domain name to update
    - `PRE_SHARED_KEY` – key for this FQDN from `backend/pre-shared-key`
+   - `INTERVAL` – update interval in seconds (default `60`)
 4. Start the containers **on separate hosts**. The client must never run on the
    same machine as the backend.
 
@@ -121,6 +122,8 @@ The container reads the following variables which should be provided via a
   - `RECORD_TTL` – TTL for DNS records in seconds (default `21600`)
   - `ZONE_CACHE_TTL` – how long the zone list is cached in seconds (default `86400`)
   - `REQUEST_CACHE_TTL` – cache lifetime for IP/FQDN entries to avoid redundant updates (default `300`)
+- `LOST_CONNECTION_TIMEOUT` – seconds without updates before a client is considered offline (default `10800`)
+- `CONNECTION_CHECK_INTERVAL` – how often to check for lost connections (default `60`)
 - `BASIC_AUTH_USERNAME` / `BASIC_AUTH_PASSWORD` – enable HTTP basic auth for the update endpoints
 
 Numeric values that cannot be parsed fall back to the defaults above and generate a warning in the log.
@@ -145,7 +148,7 @@ arguments:
 - `FQDN` – fully qualified domain name to update
 - `PRE_SHARED_KEY` – key for the configured FQDN from `backend/pre-shared-key`
 - `IP` – explicit IP address to set (optional)
-- `INTERVAL` – run repeatedly every given seconds (e.g. `3600` for hourly)
+- `INTERVAL` – run repeatedly every given seconds (default `60`; set to `0` to run once, `3600` for hourly)
 - `CA_BUNDLE` – override certificate bundle path (optional)
 - `VERIFY_SSL` – set to `0` to disable certificate verification
 
@@ -173,6 +176,18 @@ Replace the URL and `fqdn` with your values. The backend will use the IP address
 of the HTTP request if no `ip` field is supplied. This method is lightweight but
 lacks the built-in logging and isolated environment that the Docker client
 provides.
+
+### Windows Task Scheduler
+
+On Windows you can achieve the same with the built in Task Scheduler. Create a
+task that runs a small PowerShell command every minute:
+
+```cmd
+schtasks /Create /SC MINUTE /MO 1 /TN DynDNSUpdate ^
+  /TR "powershell -Command \"Invoke-WebRequest -Uri 'https://backend.example.com/update' -Method Post -Headers @{ 'X-Pre-Shared-Key'='<token>' } -Body @{ fqdn='host.example.com' }\""
+```
+
+Adjust the URL, `fqdn` and pre-shared key as needed.
 
 ### Router setup
 
