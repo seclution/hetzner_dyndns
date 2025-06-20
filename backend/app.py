@@ -6,6 +6,7 @@ import requests
 import secrets
 import ipaddress
 import time
+import threading
 
 app = Flask(__name__)
 
@@ -37,6 +38,15 @@ RECORD_TTL = int(os.environ.get("RECORD_TTL", "21600"))
 
 # Pre-shared key configuration
 PRE_SHARED_KEY_FILE = "/pre-shared-key"
+
+# Connection monitoring configuration
+LOST_CONNECTION_TIMEOUT = int(os.environ.get("LOST_CONNECTION_TIMEOUT", str(3 * 3600)))
+CONNECTION_CHECK_INTERVAL = int(os.environ.get("CONNECTION_CHECK_INTERVAL", "60"))
+
+# Mapping of url -> last update timestamp
+ESTABLISHED_CONNECTIONS = {}
+_CONNECTION_LOCK = threading.Lock()
+_MONITOR_THREAD = None
 
 
 def _load_pre_shared_key() -> str:
@@ -181,6 +191,50 @@ def send_ntfy(title: str, message: str, *, is_error: bool = False) -> None:
         )
     except requests.RequestException:
         app.logger.exception("Failed to send ntfy message")
+
+
+def update_connection(url: str, *, now: float | None = None) -> None:
+    """Update or create the timestamp entry for *url*."""
+    if now is None:
+        now = time.time()
+    url = url.lower()
+    start_thread = False
+    with _CONNECTION_LOCK:
+        if url not in ESTABLISHED_CONNECTIONS:
+            app.logger.info("dyndns connection established with %s", url)
+            start_thread = True
+        ESTABLISHED_CONNECTIONS[url] = now
+    if start_thread:
+        _ensure_monitor_thread()
+
+
+def check_connections(*, now: float | None = None) -> None:
+    """Check for lost connections and emit notifications."""
+    if now is None:
+        now = time.time()
+    expired = []
+    with _CONNECTION_LOCK:
+        for url, ts in list(ESTABLISHED_CONNECTIONS.items()):
+            if now - ts > LOST_CONNECTION_TIMEOUT:
+                expired.append(url)
+    for url in expired:
+        app.logger.error("lost dyndns connection to %s", url)
+        send_ntfy("DynDNS Lost Connection", f"Lost dyndns connection to {url}", is_error=True)
+        with _CONNECTION_LOCK:
+            ESTABLISHED_CONNECTIONS.pop(url, None)
+
+
+def _monitor_loop() -> None:
+    while True:
+        time.sleep(CONNECTION_CHECK_INTERVAL)
+        check_connections()
+
+
+def _ensure_monitor_thread() -> None:
+    global _MONITOR_THREAD
+    if _MONITOR_THREAD is None and CONNECTION_CHECK_INTERVAL > 0:
+        _MONITOR_THREAD = threading.Thread(target=_monitor_loop, daemon=True)
+        _MONITOR_THREAD.start()
 
 
 def perform_update(
@@ -460,6 +514,8 @@ def update():
         send_ntfy("Param Error", "IP version mismatch", is_error=True)
         return {"error": "IP version mismatch"}, 400
 
+    update_connection(url)
+
     result, status = perform_update(url, ip, record_type)
     return jsonify(result), status
 
@@ -487,6 +543,8 @@ def nic_update():
         ip = request.remote_addr
 
     record_type = "AAAA" if ":" in ip else "A"
+
+    update_connection(hostname)
 
     result, status = perform_update(
         hostname, ip, record_type, skip_no_change=True
