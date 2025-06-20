@@ -26,10 +26,10 @@ NTFY_URL = os.environ.get("NTFY_URL")
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC")
 NTFY_USERNAME = os.environ.get("NTFY_USERNAME")
 NTFY_PASSWORD = os.environ.get("NTFY_PASSWORD")
-ALLOWED_ZONES = [
-    z.strip().lower()
-    for z in os.environ.get("ALLOWED_ZONES", "").split(",")
-    if z.strip()
+ALLOWED_FQDNS = [
+    h.strip().lower()
+    for h in os.environ.get("ALLOWED_FQDNS", "").split(",")
+    if h.strip()
 ]
 BASIC_AUTH_USERNAME = os.environ.get("BASIC_AUTH_USERNAME")
 BASIC_AUTH_PASSWORD = os.environ.get("BASIC_AUTH_PASSWORD")
@@ -286,24 +286,14 @@ def perform_update(
         send_ntfy("Param Error", "Invalid FQDN", is_error=True)
         return {"error": "Invalid FQDN"}, 400
 
-    if ALLOWED_ZONES:
-        allowed = False
-        fqdn_lower = fqdn.lower()
-        for zone in ALLOWED_ZONES:
-            zone_lower = zone.lower()
-            if fqdn_lower == zone_lower or fqdn_lower.endswith(
-                "." + zone_lower
-            ):
-                allowed = True
-                break
-        if not allowed:
-            app.logger.error(
-                "Request from %s disallowed domain: %s",
-                request.remote_addr,
-                fqdn,
-            )
-            send_ntfy("Domain Not Allowed", fqdn, is_error=True)
-            return {"error": "Domain not allowed"}, 403
+    if not ALLOWED_FQDNS or fqdn.lower() not in ALLOWED_FQDNS:
+        app.logger.error(
+            "Request from %s disallowed fqdn: %s",
+            request.remote_addr,
+            fqdn,
+        )
+        send_ntfy("FQDN Not Allowed", fqdn, is_error=True)
+        return {"error": "FQDN not allowed"}, 403
 
     zones = get_zones()
     if zones is None:
@@ -324,14 +314,7 @@ def perform_update(
         send_ntfy("Zone Not Found", f"No matching zone for {fqdn}", is_error=True)
         return {"error": "Zone not found"}, 404
 
-    if ALLOWED_ZONES and zone_name.lower() not in ALLOWED_ZONES:
-        app.logger.error(
-            "Request from %s disallowed domain: %s",
-            request.remote_addr,
-            zone_name,
-        )
-        send_ntfy("Domain Not Allowed", zone_name, is_error=True)
-        return {"error": "Domain not allowed"}, 403
+
 
     if subdomain == "":
         app.logger.error(
@@ -571,10 +554,21 @@ def nic_update():
         user = request.args.get("user")
         pw = request.args.get("pass")
 
-    if not (user == BASIC_AUTH_USERNAME and pw == BASIC_AUTH_PASSWORD):
+    hostname = request.args.get("hostname") or request.form.get("hostname")
+    if not hostname:
+        return "nohost", 400
+
+    expected_user = hostname.split(".")[0]
+    expected_pw = PRE_SHARED_KEYS.get(hostname.lower())
+    auth_ok = False
+    if user == expected_user and pw == expected_pw:
+        auth_ok = True
+    elif BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD:
+        if user == BASIC_AUTH_USERNAME and pw == BASIC_AUTH_PASSWORD:
+            auth_ok = True
+    if not auth_ok:
         return "badauth", 401
 
-    hostname = request.args.get("hostname") or request.form.get("hostname")
     ip = request.args.get("myip") or request.form.get("myip")
     if not ip:
         ip = request.remote_addr
