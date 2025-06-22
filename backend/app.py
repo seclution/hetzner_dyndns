@@ -28,6 +28,7 @@ NTFY_USERNAME = os.environ.get("NTFY_USERNAME")
 NTFY_PASSWORD = os.environ.get("NTFY_PASSWORD")
 BASIC_AUTH_USERNAME = os.environ.get("BASIC_AUTH_USERNAME")
 BASIC_AUTH_PASSWORD = os.environ.get("BASIC_AUTH_PASSWORD")
+API_TOKEN = os.environ.get("API_TOKEN")
 
 # Cache for zone information to reduce API calls
 ZONE_CACHE = {"zones": None, "expires": 0}
@@ -86,6 +87,17 @@ def _load_pre_shared_keys(urls: list[str]) -> dict[str, str]:
         except Exception:  # pragma: no cover - shouldn't happen
             app.logger.exception("Failed to write API key file")
     return keys
+
+
+def _write_pre_shared_keys(keys: dict[str, str]) -> None:
+    """Persist *keys* to :data:`PRE_SHARED_KEY_FILE`."""
+    try:
+        with open(PRE_SHARED_KEY_FILE, "w") as f:
+            for host, key in keys.items():
+                f.write(f"{host} {key}\n")
+        os.chmod(PRE_SHARED_KEY_FILE, 0o600)
+    except Exception:  # pragma: no cover - shouldn't happen
+        app.logger.exception("Failed to write API key file")
 
 
 # Logging configuration
@@ -611,6 +623,55 @@ def nic_update():
             return f"nochg {result['ip']}", 200
         return f"good {result['ip']}", 200
     return jsonify(result), status
+
+
+def _check_api_auth() -> bool:
+    """Return True if the request is authorized for the admin API."""
+    if not API_TOKEN:
+        return False
+    return request.headers.get("X-Api-Token") == API_TOKEN
+
+
+@app.route("/register", methods=["POST"])
+def register_fqdn():
+    if not _check_api_auth():
+        return jsonify({"error": "Unauthorized"}), 401
+    data = request.get_json(silent=True) or {}
+    fqdn = data.get("fqdn")
+    if not fqdn:
+        return jsonify({"error": "Missing FQDN"}), 400
+    fqdn = fqdn.lower()
+    if fqdn not in REGISTERED_FQDNS:
+        REGISTERED_FQDNS.append(fqdn)
+    token = PRE_SHARED_KEYS.get(fqdn)
+    if not token:
+        token = secrets.token_urlsafe(32)
+        PRE_SHARED_KEYS[fqdn] = token
+        _write_pre_shared_keys(PRE_SHARED_KEYS)
+    return jsonify({"fqdn": fqdn, "token": token})
+
+
+@app.route("/token/<fqdn>", methods=["GET"])
+def get_token(fqdn: str):
+    if not _check_api_auth():
+        return jsonify({"error": "Unauthorized"}), 401
+    token = PRE_SHARED_KEYS.get(fqdn.lower())
+    if not token:
+        return jsonify({"error": "Unknown FQDN"}), 404
+    return jsonify({"fqdn": fqdn.lower(), "token": token})
+
+
+@app.route("/reset/<fqdn>", methods=["POST"])
+def reset_token(fqdn: str):
+    if not _check_api_auth():
+        return jsonify({"error": "Unauthorized"}), 401
+    fqdn = fqdn.lower()
+    if fqdn not in REGISTERED_FQDNS:
+        return jsonify({"error": "Unknown FQDN"}), 404
+    new_token = secrets.token_urlsafe(32)
+    PRE_SHARED_KEYS[fqdn] = new_token
+    _write_pre_shared_keys(PRE_SHARED_KEYS)
+    return jsonify({"fqdn": fqdn, "token": new_token})
 
 
 if __name__ == "__main__":

@@ -774,5 +774,5 @@ def test_request_cache_logs_only_in_debug(monkeypatch):
         headers={"X-Pre-Shared-Key": "test"},
     )
     assert resp.status_code == 200
-    assert any("(cache)" in l for l in logs)
+    assert any("(cache)" in line for line in logs)
     assert call_count["post"] == 1
