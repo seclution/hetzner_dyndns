@@ -136,8 +136,12 @@ The container reads the following variables which should be provided via a
 - `LOST_CONNECTION_TIMEOUT` – seconds without updates before a client is considered offline (default `10800`)
 - `CONNECTION_CHECK_INTERVAL` – how often to check for lost connections (default `60`)
 - `BASIC_AUTH_USERNAME` / `BASIC_AUTH_PASSWORD` – enable HTTP basic auth for the update endpoints
+- `API_TOKEN` – token required to access the administrative API (optional)
 
 Numeric values that cannot be parsed fall back to the defaults above and generate a warning in the log.
+
+Further information about the planned administration API can be found in
+[`docs/backend_api.md`](docs/backend_api.md).
 
 ## Client
 
