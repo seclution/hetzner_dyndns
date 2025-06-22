@@ -46,6 +46,18 @@ Response body:
 { "fqdn": "host.example.com", "token": "..." }
 ```
 
+### `POST /reset/<fqdn>`
+Generates a new token for the given FQDN.
+
+This endpoint is intended to be used when a customer requests a reset via the
+webshop. The webshop verifies the user's email and then calls this API to obtain
+a fresh token which is shown once to the customer.
+
+Response body:
+```json
+{ "fqdn": "host.example.com", "token": "..." }
+```
+
 ## Configuration
 
 A new environment variable `API_TOKEN` will hold the administrative token. The
@@ -61,8 +73,8 @@ is read and all entries are loaded into memory.
 1. Extend `backend/app.py`
    - Load `API_TOKEN` from the environment.
    - Add helper functions to read and write the `pre-shared-key` file.
-   - Implement the `/register` and `/token/<fqdn>` routes with token
-     authentication.
+   - Implement the `/register`, `/token/<fqdn>` and `/reset/<fqdn>` routes with
+     token authentication.
 2. Write unit tests covering the new functionality.
 3. Document the new API in the main `README.md`.
 
