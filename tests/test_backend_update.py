@@ -185,8 +185,7 @@ def test_update_api_failure(monkeypatch):
     )
     assert resp.status_code == 500
     data = resp.get_json()
-    assert data.get("error") == "API failure"
-    assert "fail" in data.get("detail")
+    assert data == {"error": "API failure"}
     assert called.get("ntfy") is True
 
 

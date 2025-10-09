@@ -372,7 +372,7 @@ def perform_update(
             "Records fetch exception for %s from %s", fqdn, request.remote_addr
         )
         send_ntfy("Records Fetch Error", str(exc), is_error=True)
-        return {"error": "Failed to fetch records", "detail": str(exc)}, 500
+        return {"error": "Failed to fetch records"}, 500
     if records_resp.status_code != 200:
         app.logger.error(
             "Records fetch failed for %s from %s: %s",
@@ -426,10 +426,7 @@ def perform_update(
                 request.remote_addr,
             )
             send_ntfy("Update Record Error", str(exc), is_error=True)
-            return {
-                "error": "Failed to update record",
-                "detail": str(exc),
-            }, 500
+            return {"error": "Failed to update record"}, 500
         action = "Updated"
     else:
         try:
@@ -449,10 +446,7 @@ def perform_update(
                 request.remote_addr,
             )
             send_ntfy("Create Record Error", str(exc), is_error=True)
-            return {
-                "error": "Failed to create record",
-                "detail": str(exc),
-            }, 500
+            return {"error": "Failed to create record"}, 500
         action = "Created"
 
     if resp.ok:
@@ -478,7 +472,7 @@ def perform_update(
             resp.text,
         )
         send_ntfy(f"{action} Failed", resp.text, is_error=True)
-        return {"error": "API failure", "detail": resp.text}, 500
+        return {"error": "API failure"}, 500
 
 
 @app.route("/update", methods=["POST"])

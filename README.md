@@ -53,6 +53,13 @@ automatically start again after a Docker restart.
 Compose files live in [`backend/docker-compose.yml`](backend/docker-compose.yml)
 and [`client/docker-compose.yml`](client/docker-compose.yml).
 
+Security warning: The backend listens on plain HTTP by default. Always place it
+behind a TLS-terminating reverse proxy or enable HTTPS before exposing the
+service to the internet. Without transport encryption, pre-shared keys and
+credentials can be intercepted and used to take over your DNS records. The
+sample compose files keep `http://` URLs because a reverse proxy is expected in
+front of the containers.
+
 ---
 
 This project provides a lightweight REST API for updating Hetzner DNS A/AAAA records.
@@ -267,4 +274,3 @@ Run the test suite with `pytest` or invoke all hooks using:
 ```bash
 pre-commit run --all-files
 ```
-
