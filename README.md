@@ -13,7 +13,7 @@ Python 3.8 or newer is required. This is specified by `requires-python = ">=3.8"
 1. Copy [`backend/.secrets.example`](backend/.secrets.example) to
    `backend/.secrets` and fill in at
    least these variables:
-   - `HETZNER_TOKEN` – your Hetzner DNS API token
+   - `HETZNER_TOKEN` – your Hetzner Cloud API token (from Hetzner Console)
    - `NTFY_URL` – base URL of your NTFY instance
    - `NTFY_TOPIC` – topic name for notifications
 2. List your hostnames in `REGISTERED_FQDNS` inside `backend/.secrets`.
@@ -63,15 +63,22 @@ front of the containers.
 ---
 
 This project provides a lightweight REST API for updating Hetzner DNS A/AAAA records.
-It consists of a backend service that communicates with the Hetzner DNS API and
+It consists of a backend service that communicates with the Hetzner Cloud Console DNS API and
 an optional client that can be run on remote systems to trigger updates.
 
 ## Backend
 
 The backend is a small Flask application exposing two endpoints. `/update`
 accepts JSON payloads while `/nic/update` follows the dyndns2 protocol for
-routers and other dynamic DNS clients. The `/update` endpoint expects JSON of
-the form:
+routers and other dynamic DNS clients.
+
+DNS updates use Hetzner's Cloud Console API (`https://api.hetzner.cloud/v1`)
+with Bearer authentication. The service lists zones via `/zones`, lists RRSets
+via `/zones/{zone}/rrsets`, creates records via `POST /zones/{zone}/rrsets`,
+and updates existing entries via
+`PUT /zones/{zone}/rrsets/{name}/{type}/actions/set_records`.
+
+The `/update` endpoint expects JSON of the form:
 
 ```json
 { "fqdn": "host.example.com", "ip": "1.2.3.4" }
@@ -126,7 +133,7 @@ chmod 600 backend/pre-shared-key
 The container reads the following variables which should be provided via a
 `backend/.secrets` file or other means:
 
-- `HETZNER_TOKEN` – API token for the Hetzner DNS API
+- `HETZNER_TOKEN` – API token for the Hetzner Cloud API (Authorization: Bearer <token>)
 - `NTFY_URL` – Base URL of your NTFY instance
 - `NTFY_TOPIC` – Topic name used for notifications
 - `REGISTERED_FQDNS` – comma-separated hostnames to manage. If empty, no updates are performed.

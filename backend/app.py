@@ -42,6 +42,15 @@ REQUEST_CACHE_TTL = _get_int_env("REQUEST_CACHE_TTL", 300)  # seconds
 # Default TTL for created or updated DNS records
 RECORD_TTL = _get_int_env("RECORD_TTL", 21600)
 
+HETZNER_API_BASE = "https://api.hetzner.cloud/v1"
+
+
+def _hetzner_headers(*, json_request: bool = False) -> dict[str, str]:
+    headers = {"Authorization": f"Bearer {HETZNER_TOKEN}"}
+    if json_request:
+        headers["Content-Type"] = "application/json"
+    return headers
+
 # Pre-shared key configuration
 PRE_SHARED_KEY_FILE = "/pre-shared-key"
 REGISTERED_FQDNS = [
@@ -145,8 +154,8 @@ def get_zones(force_refresh: bool = False):
 
     try:
         resp = requests.get(
-            "https://dns.hetzner.com/api/v1/zones",
-            headers={"Auth-API-Token": HETZNER_TOKEN},
+            f"{HETZNER_API_BASE}/zones",
+            headers=_hetzner_headers(),
             timeout=10,
         )
     except requests.RequestException as exc:
@@ -363,8 +372,8 @@ def perform_update(
 
     try:
         records_resp = requests.get(
-            f"https://dns.hetzner.com/api/v1/records?zone_id={zone_id}",
-            headers={"Auth-API-Token": HETZNER_TOKEN},
+            f"{HETZNER_API_BASE}/zones/{zone_id}/rrsets",
+            headers=_hetzner_headers(),
             timeout=10,
         )
     except requests.RequestException as exc:
@@ -383,39 +392,33 @@ def perform_update(
         send_ntfy("Records Fetch Failed", records_resp.text, is_error=True)
         return {"error": "Failed to fetch records"}, 500
 
-    record_id = None
-    current_value = None
-    for record in records_resp.json().get("records", []):
+    record_name = None
+    current_values = []
+    for rrset in records_resp.json().get("rrsets", []):
+        records = rrset.get("records") or []
         if (
-            record.get("name") == subdomain
-            and record.get("type") == record_type
+            rrset.get("name") == subdomain
+            and rrset.get("type") == record_type
         ):
-            record_id = record.get("id")
-            current_value = record.get("value")
+            record_name = rrset.get("name")
+            current_values = [r.get("value") for r in records if r.get("value")]
             break
 
-    if record_id and skip_no_change and current_value == ip:
+    if record_name and skip_no_change and ip in current_values:
         app.logger.info("No change for %s from %s", fqdn, request.remote_addr)
         send_ntfy("DynDNS Success", f"No change for {fqdn} -> {ip}")
         REQUEST_CACHE[cache_key] = {"ip": ip, "expires": now + REQUEST_CACHE_TTL}
         return {"status": "unchanged", "ip": ip}, 200
 
     payload = {
-        "value": ip,
-        "ttl": RECORD_TTL,
-        "type": record_type,
-        "name": subdomain,
-        "zone_id": zone_id,
+        "records": [{"value": ip}],
     }
 
-    if record_id:
+    if record_name:
         try:
             resp = requests.put(
-                f"https://dns.hetzner.com/api/v1/records/{record_id}",
-                headers={
-                    "Auth-API-Token": HETZNER_TOKEN,
-                    "Content-Type": "application/json",
-                },
+                f"{HETZNER_API_BASE}/zones/{zone_id}/rrsets/{record_name}/{record_type}/actions/set_records",
+                headers=_hetzner_headers(json_request=True),
                 json=payload,
                 timeout=10,
             )
@@ -429,13 +432,17 @@ def perform_update(
             return {"error": "Failed to update record"}, 500
         action = "Updated"
     else:
+        payload.update(
+            {
+                "ttl": RECORD_TTL,
+                "type": record_type,
+                "name": subdomain,
+            }
+        )
         try:
             resp = requests.post(
-                "https://dns.hetzner.com/api/v1/records",
-                headers={
-                    "Auth-API-Token": HETZNER_TOKEN,
-                    "Content-Type": "application/json",
-                },
+                f"{HETZNER_API_BASE}/zones/{zone_id}/rrsets",
+                headers=_hetzner_headers(json_request=True),
                 json=payload,
                 timeout=10,
             )
