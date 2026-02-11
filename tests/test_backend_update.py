@@ -68,12 +68,12 @@ def test_update_creates_record(monkeypatch):
     def mock_get(url, headers=None, **kwargs):
         if url.endswith("/zones"):
             return DummyResp({"zones": [{"id": "z1", "name": "example.com"}]})
-        elif url.startswith("https://dns.hetzner.com/api/v1/records"):
-            return DummyResp({"records": []})
+        elif url.startswith("https://api.hetzner.cloud/v1/zones/z1/rrsets"):
+            return DummyResp({"rrsets": []})
         raise AssertionError("unexpected GET " + url)
 
     def mock_post(url, headers=None, json=None, **kwargs):
-        assert url.endswith("/records")
+        assert url.endswith("/rrsets")
         return DummyResp({"record": {"id": "r1"}})
 
     monkeypatch.setattr(backend_app.requests, "get", mock_get)
@@ -128,14 +128,14 @@ def test_update_updates_record(monkeypatch):
     def mock_get(url, headers=None, **kwargs):
         if url.endswith("/zones"):
             return DummyResp({"zones": [{"id": "z1", "name": "example.com"}]})
-        elif url.startswith("https://dns.hetzner.com/api/v1/records"):
+        elif url.startswith("https://api.hetzner.cloud/v1/zones/z1/rrsets"):
             return DummyResp(
-                {"records": [{"id": "r1", "name": "host", "type": "A"}]}
+                {"rrsets": [{"name": "host", "type": "A", "records": [{"value": "1.1.1.1"}]}]}
             )
         raise AssertionError("unexpected GET " + url)
 
     def mock_put(url, headers=None, json=None, **kwargs):
-        assert url.endswith("/records/r1")
+        assert url.endswith("/rrsets/host/A/actions/set_records")
         return DummyResp({"record": {"id": "r1"}})
 
     monkeypatch.setattr(backend_app.requests, "get", mock_get)
@@ -166,12 +166,12 @@ def test_update_api_failure(monkeypatch):
     def mock_get(url, headers=None, **kwargs):
         if url.endswith("/zones"):
             return DummyResp({"zones": [{"id": "z1", "name": "example.com"}]})
-        elif url.startswith("https://dns.hetzner.com/api/v1/records"):
-            return DummyResp({"records": []})
+        elif url.startswith("https://api.hetzner.cloud/v1/zones/z1/rrsets"):
+            return DummyResp({"rrsets": []})
         raise AssertionError("unexpected GET " + url)
 
     def mock_post(url, headers=None, json=None, **kwargs):
-        assert url.endswith("/records")
+        assert url.endswith("/rrsets")
         return DummyResp({"error": "fail"}, status_code=500)
 
     monkeypatch.setattr(backend_app.requests, "get", mock_get)
@@ -213,13 +213,13 @@ def test_ipv6_record(monkeypatch):
     def mock_get(url, headers=None, **kwargs):
         if url.endswith("/zones"):
             return DummyResp({"zones": [{"id": "z1", "name": "example.com"}]})
-        elif url.startswith("https://dns.hetzner.com/api/v1/records"):
-            return DummyResp({"records": []})
+        elif url.startswith("https://api.hetzner.cloud/v1/zones/z1/rrsets"):
+            return DummyResp({"rrsets": []})
         raise AssertionError("unexpected GET " + url)
 
     def mock_post(url, headers=None, json=None, **kwargs):
         assert json["type"] == "AAAA"
-        assert json["value"] == "2001:db8::1"
+        assert json["records"] == [{"value": "2001:db8::1"}]
         return DummyResp({"record": {"id": "r1"}})
 
     monkeypatch.setattr(backend_app.requests, "get", mock_get)
@@ -300,13 +300,13 @@ def test_update_multi_level_zone(monkeypatch):
                 }
             )
         elif url.startswith(
-            "https://dns.hetzner.com/api/v1/records?zone_id=z2"
+            "https://api.hetzner.cloud/v1/zones/z2/rrsets"
         ):
-            return DummyResp({"records": []})
+            return DummyResp({"rrsets": []})
         raise AssertionError("unexpected GET " + url)
 
     def mock_post(url, headers=None, json=None, **kwargs):
-        assert json["zone_id"] == "z2"
+        assert url.endswith("/zones/z2/rrsets")
         assert json["name"] == "host"
         return DummyResp({"record": {"id": "r1"}})
 
@@ -392,8 +392,8 @@ def test_basic_auth(monkeypatch):
     def mock_get(url, headers=None, **kwargs):
         if url.endswith("/zones"):
             return DummyResp({"zones": [{"id": "z1", "name": "example.com"}]})
-        elif url.startswith("https://dns.hetzner.com/api/v1/records"):
-            return DummyResp({"records": []})
+        elif url.startswith("https://api.hetzner.cloud/v1/zones/z1/rrsets"):
+            return DummyResp({"rrsets": []})
         raise AssertionError("unexpected GET " + url)
 
     def mock_post(url, headers=None, json=None, **kwargs):
@@ -425,8 +425,8 @@ def test_nic_update(monkeypatch):
     def mock_get(url, headers=None, **kwargs):
         if url.endswith("/zones"):
             return DummyResp({"zones": [{"id": "z1", "name": "example.com"}]})
-        elif url.startswith("https://dns.hetzner.com/api/v1/records"):
-            return DummyResp({"records": []})
+        elif url.startswith("https://api.hetzner.cloud/v1/zones/z1/rrsets"):
+            return DummyResp({"rrsets": []})
         raise AssertionError("unexpected GET " + url)
 
     def mock_post(url, headers=None, json=None, **kwargs):
@@ -458,8 +458,8 @@ def test_nic_update_query_auth(monkeypatch):
     def mock_get(url, headers=None, **kwargs):
         if url.endswith("/zones"):
             return DummyResp({"zones": [{"id": "z1", "name": "example.com"}]})
-        elif url.startswith("https://dns.hetzner.com/api/v1/records"):
-            return DummyResp({"records": []})
+        elif url.startswith("https://api.hetzner.cloud/v1/zones/z1/rrsets"):
+            return DummyResp({"rrsets": []})
         raise AssertionError("unexpected GET " + url)
 
     def mock_post(url, headers=None, json=None, **kwargs):
@@ -487,8 +487,8 @@ def test_record_ttl_from_env(monkeypatch):
     def mock_get(url, headers=None, **kwargs):
         if url.endswith("/zones"):
             return DummyResp({"zones": [{"id": "z1", "name": "example.com"}]})
-        elif url.startswith("https://dns.hetzner.com/api/v1/records"):
-            return DummyResp({"records": []})
+        elif url.startswith("https://api.hetzner.cloud/v1/zones/z1/rrsets"):
+            return DummyResp({"rrsets": []})
         raise AssertionError("unexpected GET " + url)
 
     captured = {}
@@ -518,8 +518,8 @@ def test_request_cache_skips_duplicate(monkeypatch):
     def mock_get(url, headers=None, **kwargs):
         if url.endswith("/zones"):
             return DummyResp({"zones": [{"id": "z1", "name": "example.com"}]})
-        elif url.startswith("https://dns.hetzner.com/api/v1/records"):
-            return DummyResp({"records": []})
+        elif url.startswith("https://api.hetzner.cloud/v1/zones/z1/rrsets"):
+            return DummyResp({"rrsets": []})
         raise AssertionError("unexpected GET " + url)
 
     call_count = {"post": 0}
@@ -610,8 +610,8 @@ def test_perform_update_purges_cache(monkeypatch):
     def mock_get(url, headers=None, **kwargs):
         if url.endswith("/zones"):
             return DummyResp({"zones": [{"id": "z1", "name": "example.com"}]})
-        elif url.startswith("https://dns.hetzner.com/api/v1/records"):
-            return DummyResp({"records": []})
+        elif url.startswith("https://api.hetzner.cloud/v1/zones/z1/rrsets"):
+            return DummyResp({"rrsets": []})
         raise AssertionError("unexpected GET " + url)
 
     post_calls = {"count": 0}
@@ -731,8 +731,8 @@ def test_request_cache_logs_only_in_debug(monkeypatch):
     def mock_get(url, headers=None, **kwargs):
         if url.endswith("/zones"):
             return DummyResp({"zones": [{"id": "z1", "name": "example.com"}]})
-        elif url.startswith("https://dns.hetzner.com/api/v1/records"):
-            return DummyResp({"records": []})
+        elif url.startswith("https://api.hetzner.cloud/v1/zones/z1/rrsets"):
+            return DummyResp({"rrsets": []})
         raise AssertionError("unexpected GET " + url)
 
     call_count = {"post": 0}
