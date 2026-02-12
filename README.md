@@ -76,7 +76,7 @@ DNS updates use Hetzner's Cloud Console API (`https://api.hetzner.cloud/v1`)
 with Bearer authentication. The service lists zones via `/zones`, lists RRSets
 via `/zones/{zone}/rrsets`, creates records via `POST /zones/{zone}/rrsets`,
 and updates existing entries via
-`PUT /zones/{zone}/rrsets/{name}/{type}/actions/set_records`.
+`PUT /zones/{zone}/rrsets/{id}/actions/set_records` (using the RRSet ID returned by the list endpoint).
 
 The `/update` endpoint expects JSON of the form:
 
