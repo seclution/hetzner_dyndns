@@ -17,3 +17,9 @@ def test_log_file_directory_created(monkeypatch, tmp_path):
     assert mod._file_handler_error is None
     monkeypatch.delenv("LOG_FILE", raising=False)
     importlib.reload(sys.modules["hetzner_dyndns.backend.app"])
+
+
+def test_record_ttl_default_is_low_for_dyndns(monkeypatch):
+    monkeypatch.delenv("RECORD_TTL", raising=False)
+    mod = importlib.reload(sys.modules["hetzner_dyndns.backend.app"])
+    assert mod.RECORD_TTL == 60

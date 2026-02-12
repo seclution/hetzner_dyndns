@@ -98,7 +98,7 @@ To reduce the number of API calls, the service caches the list of zones from
 Hetzner's API as well as the last IP address seen for each domain.  Repeated
 updates with the same IP are answered from this cache without contacting
 Hetzner again.  The zone list is cached for 24&nbsp;hours by default and DNS
-records are created with a 6&nbsp;hour TTL.  These values can be adjusted via the
+records are created with a 60&nbsp;second TTL to allow fast DynDNS propagation.  These values can be adjusted via the
 `ZONE_CACHE_TTL` and `RECORD_TTL` environment variables.  The request-level
 cache lifetime is controlled by `REQUEST_CACHE_TTL`.
 The "no change (cache)" log entry is only emitted when debug logging is enabled.
@@ -144,7 +144,7 @@ The container reads the following variables which should be provided via a
 - `LOG_MAX_BYTES` – maximum size of the log file before rotation (default 1048576)
 - `LOG_BACKUP_COUNT` – number of rotated log files to keep (default 3)
 - `LISTEN_PORT` – port the application listens on (default `80`)
-- `RECORD_TTL` – TTL for DNS records in seconds (default `21600`)
+- `RECORD_TTL` – TTL for DNS records in seconds (default `60`)
 - `ZONE_CACHE_TTL` – how long the zone list is cached in seconds (default `86400`)
 - `REQUEST_CACHE_TTL` – cache lifetime for IP/FQDN entries to avoid redundant updates (default `300`)
 - `LOST_CONNECTION_TIMEOUT` – seconds without updates before a client is considered offline (default `10800`)

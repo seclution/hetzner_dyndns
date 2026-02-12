@@ -39,8 +39,9 @@ ZONE_CACHE_TTL = _get_int_env("ZONE_CACHE_TTL", 86400)  # seconds
 REQUEST_CACHE = {}
 REQUEST_CACHE_TTL = _get_int_env("REQUEST_CACHE_TTL", 300)  # seconds
 
-# Default TTL for created or updated DNS records
-RECORD_TTL = _get_int_env("RECORD_TTL", 21600)
+# Default TTL for created or updated DNS records.
+# A short TTL helps DynDNS changes propagate quickly.
+RECORD_TTL = _get_int_env("RECORD_TTL", 60)
 
 HETZNER_API_BASE = "https://api.hetzner.cloud/v1"
 
