@@ -130,12 +130,12 @@ def test_update_updates_record(monkeypatch):
             return DummyResp({"zones": [{"id": "z1", "name": "example.com"}]})
         elif url.startswith("https://api.hetzner.cloud/v1/zones/z1/rrsets"):
             return DummyResp(
-                {"rrsets": [{"name": "host", "type": "A", "records": [{"value": "1.1.1.1"}]}]}
+                {"rrsets": [{"id": "r1", "name": "host", "type": "A", "records": [{"value": "1.1.1.1"}]}]}
             )
         raise AssertionError("unexpected GET " + url)
 
     def mock_put(url, headers=None, json=None, **kwargs):
-        assert url.endswith("/rrsets/host/A/actions/set_records")
+        assert url.endswith("/rrsets/r1/actions/set_records")
         return DummyResp({"record": {"id": "r1"}})
 
     monkeypatch.setattr(backend_app.requests, "get", mock_get)
@@ -149,6 +149,34 @@ def test_update_updates_record(monkeypatch):
     )
     assert resp.status_code == 200
     assert resp.get_json() == {"status": "updated", "ip": "1.2.3.4"}
+
+
+def test_update_record_without_id_fails(monkeypatch):
+    monkeypatch.setattr(backend_app, "HETZNER_TOKEN", "token")
+    monkeypatch.setattr(backend_app, "send_ntfy", lambda *a, **k: None)
+    monkeypatch.setattr(
+        backend_app, "ZONE_CACHE", {"zones": None, "expires": 0}
+    )
+
+    def mock_get(url, headers=None, **kwargs):
+        if url.endswith("/zones"):
+            return DummyResp({"zones": [{"id": "z1", "name": "example.com"}]})
+        elif url.startswith("https://api.hetzner.cloud/v1/zones/z1/rrsets"):
+            return DummyResp(
+                {"rrsets": [{"name": "host", "type": "A", "records": [{"value": "1.1.1.1"}]}]}
+            )
+        raise AssertionError("unexpected GET " + url)
+
+    monkeypatch.setattr(backend_app.requests, "get", mock_get)
+
+    client = backend_app.app.test_client()
+    resp = client.post(
+        "/update",
+        json={"fqdn": "host.example.com", "ip": "1.2.3.4"},
+        headers={"X-Pre-Shared-Key": "test"},
+    )
+    assert resp.status_code == 500
+    assert resp.get_json() == {"error": "Failed to fetch records"}
 
 
 def test_update_api_failure(monkeypatch):

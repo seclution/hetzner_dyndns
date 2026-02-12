@@ -392,7 +392,8 @@ def perform_update(
         send_ntfy("Records Fetch Failed", records_resp.text, is_error=True)
         return {"error": "Failed to fetch records"}, 500
 
-    record_name = None
+    record_id = None
+    record_found = False
     current_values = []
     for rrset in records_resp.json().get("rrsets", []):
         records = rrset.get("records") or []
@@ -400,11 +401,22 @@ def perform_update(
             rrset.get("name") == subdomain
             and rrset.get("type") == record_type
         ):
-            record_name = rrset.get("name")
+            record_found = True
+            record_id = rrset.get("id")
             current_values = [r.get("value") for r in records if r.get("value")]
             break
 
-    if record_name and skip_no_change and ip in current_values:
+    if record_found and not record_id:
+        app.logger.error(
+            "Record id missing for %s (%s) from %s",
+            fqdn,
+            record_type,
+            request.remote_addr,
+        )
+        send_ntfy("Records Fetch Failed", "Record id missing", is_error=True)
+        return {"error": "Failed to fetch records"}, 500
+
+    if record_id and skip_no_change and ip in current_values:
         app.logger.info("No change for %s from %s", fqdn, request.remote_addr)
         send_ntfy("DynDNS Success", f"No change for {fqdn} -> {ip}")
         REQUEST_CACHE[cache_key] = {"ip": ip, "expires": now + REQUEST_CACHE_TTL}
@@ -414,10 +426,10 @@ def perform_update(
         "records": [{"value": ip}],
     }
 
-    if record_name:
+    if record_id:
         try:
             resp = requests.put(
-                f"{HETZNER_API_BASE}/zones/{zone_id}/rrsets/{record_name}/{record_type}/actions/set_records",
+                f"{HETZNER_API_BASE}/zones/{zone_id}/rrsets/{record_id}/actions/set_records",
                 headers=_hetzner_headers(json_request=True),
                 json=payload,
                 timeout=10,
