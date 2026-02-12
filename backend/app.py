@@ -428,7 +428,7 @@ def perform_update(
 
     if record_id:
         try:
-            resp = requests.put(
+            resp = requests.post(
                 f"{HETZNER_API_BASE}/zones/{zone_id}/rrsets/{record_id}/actions/set_records",
                 headers=_hetzner_headers(json_request=True),
                 json=payload,

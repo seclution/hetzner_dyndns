@@ -134,12 +134,12 @@ def test_update_updates_record(monkeypatch):
             )
         raise AssertionError("unexpected GET " + url)
 
-    def mock_put(url, headers=None, json=None, **kwargs):
+    def mock_post(url, headers=None, json=None, **kwargs):
         assert url.endswith("/rrsets/r1/actions/set_records")
         return DummyResp({"record": {"id": "r1"}})
 
     monkeypatch.setattr(backend_app.requests, "get", mock_get)
-    monkeypatch.setattr(backend_app.requests, "put", mock_put)
+    monkeypatch.setattr(backend_app.requests, "post", mock_post)
 
     client = backend_app.app.test_client()
     resp = client.post(
