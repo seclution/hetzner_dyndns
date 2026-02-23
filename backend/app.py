@@ -1,5 +1,7 @@
 import os
+import hmac
 import logging
+import tempfile
 from logging.handlers import RotatingFileHandler
 from flask import Flask, request, jsonify, abort
 import requests
@@ -9,6 +11,16 @@ import time
 import threading
 
 app = Flask(__name__)
+# Limit request body to 1 KB to prevent memory exhaustion from oversized payloads
+app.config["MAX_CONTENT_LENGTH"] = 1024
+
+
+@app.after_request
+def _set_security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Content-Security-Policy"] = "default-src 'none'"
+    return response
 
 
 def _get_int_env(name: str, default: int) -> int:
@@ -30,13 +42,15 @@ BASIC_AUTH_USERNAME = os.environ.get("BASIC_AUTH_USERNAME")
 BASIC_AUTH_PASSWORD = os.environ.get("BASIC_AUTH_PASSWORD")
 
 # Cache for zone information to reduce API calls
-ZONE_CACHE = {"zones": None, "expires": 0}
+ZONE_CACHE = {"zones": None, "zone_map": None, "expires": 0}
+_ZONE_CACHE_LOCK = threading.Lock()
 # Default TTL for the zone list; zone IDs rarely change so cache for a day
 ZONE_CACHE_TTL = _get_int_env("ZONE_CACHE_TTL", 86400)  # seconds
 
 # Cache last seen IP for FQDN/type combinations to avoid redundant updates
 # Mapping of (fqdn.lower(), record_type) -> {"ip": str, "expires": timestamp}
 REQUEST_CACHE = {}
+_REQUEST_CACHE_LOCK = threading.Lock()
 REQUEST_CACHE_TTL = _get_int_env("REQUEST_CACHE_TTL", 300)  # seconds
 
 # Default TTL for created or updated DNS records.
@@ -44,6 +58,19 @@ REQUEST_CACHE_TTL = _get_int_env("REQUEST_CACHE_TTL", 300)  # seconds
 RECORD_TTL = _get_int_env("RECORD_TTL", 60)
 
 HETZNER_API_BASE = "https://api.hetzner.cloud/v1"
+
+# Characters allowed in FQDN values used in log messages.
+# Strips control characters, newlines, and ANSI escapes to prevent log injection.
+_FQDN_ALLOWED = set(
+    "abcdefghijklmnopqrstuvwxyz"
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    "0123456789.-_"
+)
+
+
+def _sanitize_fqdn(value: str) -> str:
+    """Sanitize a user-supplied FQDN for safe use in log messages."""
+    return "".join(c for c in value[:253] if c in _FQDN_ALLOWED) or "<empty>"
 
 
 def _hetzner_headers(*, json_request: bool = False) -> dict[str, str]:
@@ -89,10 +116,17 @@ def _load_pre_shared_keys(urls: list[str]) -> dict[str, str]:
             changed = True
     if changed:
         try:
-            with open(PRE_SHARED_KEY_FILE, "w") as f:
-                for host, key in keys.items():
-                    f.write(f"{host} {key}\n")
-            os.chmod(PRE_SHARED_KEY_FILE, 0o600)
+            dir_name = os.path.dirname(PRE_SHARED_KEY_FILE) or "."
+            fd, tmp_path = tempfile.mkstemp(dir=dir_name)
+            try:
+                with os.fdopen(fd, "w") as f:
+                    for host, key in keys.items():
+                        f.write(f"{host} {key}\n")
+                os.chmod(tmp_path, 0o600)
+                os.replace(tmp_path, PRE_SHARED_KEY_FILE)
+            except BaseException:
+                os.unlink(tmp_path)
+                raise
         except Exception:  # pragma: no cover - shouldn't happen
             app.logger.exception("Failed to write API key file")
     return keys
@@ -143,15 +177,21 @@ if DEBUG_LOGGING:
 PRE_SHARED_KEYS = _load_pre_shared_keys(REGISTERED_FQDNS)
 
 
+def _build_zone_map(zones):
+    """Build a mapping of lowercased zone names to zone objects."""
+    return {z.get("name", "").lower(): z for z in zones}
+
+
 def get_zones(force_refresh: bool = False):
     """Return list of zones using a simple in-memory cache."""
     now = time.time()
-    if (
-        not force_refresh
-        and ZONE_CACHE["zones"] is not None
-        and now < ZONE_CACHE["expires"]
-    ):
-        return ZONE_CACHE["zones"]
+    with _ZONE_CACHE_LOCK:
+        if (
+            not force_refresh
+            and ZONE_CACHE["zones"] is not None
+            and now < ZONE_CACHE["expires"]
+        ):
+            return ZONE_CACHE["zones"]
 
     try:
         resp = requests.get(
@@ -162,33 +202,41 @@ def get_zones(force_refresh: bool = False):
     except requests.RequestException as exc:
         app.logger.exception("Zone fetch exception")
         send_ntfy("Zone Fetch Error", str(exc), is_error=True)
-        # If we have cached zones, return them even on failure
-        if ZONE_CACHE["zones"] is not None:
-            return ZONE_CACHE["zones"]
+        with _ZONE_CACHE_LOCK:
+            if ZONE_CACHE["zones"] is not None:
+                return ZONE_CACHE["zones"]
         return None
 
     if resp.status_code != 200:
         app.logger.error("Zone fetch failed: %s", resp.text)
         send_ntfy("Zone Fetch Failed", resp.text, is_error=True)
-        if ZONE_CACHE["zones"] is not None:
-            return ZONE_CACHE["zones"]
+        with _ZONE_CACHE_LOCK:
+            if ZONE_CACHE["zones"] is not None:
+                return ZONE_CACHE["zones"]
         return None
 
     zones = resp.json().get("zones", [])
-    ZONE_CACHE.update({"zones": zones, "expires": now + ZONE_CACHE_TTL})
+    zone_map = _build_zone_map(zones)
+    with _ZONE_CACHE_LOCK:
+        ZONE_CACHE.update({
+            "zones": zones,
+            "zone_map": zone_map,
+            "expires": now + ZONE_CACHE_TTL,
+        })
     return zones
 
 
 def find_zone(fqdn: str, zones):
     """Return zone id, zone name and subdomain for *fqdn*.
 
-    Instead of iterating linearly over ``zones`` for every lookup, build a
-    mapping of zone names to their objects and check suffixes of ``fqdn`` from
-    longest to shortest.  This reduces the amount of work when the list of
-    zones becomes large.
+    Instead of iterating linearly over ``zones`` for every lookup, use the
+    cached zone_map and check suffixes of ``fqdn`` from longest to shortest.
     """
 
-    zone_map = {z.get("name", "").lower(): z for z in zones}
+    with _ZONE_CACHE_LOCK:
+        zone_map = ZONE_CACHE.get("zone_map")
+    if zone_map is None:
+        zone_map = _build_zone_map(zones)
     parts = fqdn.split(".")
     for i in range(len(parts)):
         suffix = ".".join(parts[i:]).lower()
@@ -293,9 +341,10 @@ def purge_request_cache(*, now: float | None = None) -> None:
     """Remove expired entries from :data:`REQUEST_CACHE`."""
     if now is None:
         now = time.time()
-    for key, value in list(REQUEST_CACHE.items()):
-        if value.get("expires", 0) < now:
-            REQUEST_CACHE.pop(key, None)
+    with _REQUEST_CACHE_LOCK:
+        for key, value in list(REQUEST_CACHE.items()):
+            if value.get("expires", 0) < now:
+                REQUEST_CACHE.pop(key, None)
 
 
 def perform_update(
@@ -305,10 +354,11 @@ def perform_update(
 
     purge_request_cache()
 
+    safe_fqdn = _sanitize_fqdn(fqdn)
     domain_parts = fqdn.split(".")
     if len(domain_parts) < 2:
         app.logger.error(
-            "Request from %s invalid fqdn: %s", request.remote_addr, fqdn
+            "Request from %s invalid fqdn: %s", request.remote_addr, safe_fqdn
         )
         send_ntfy("Param Error", "Invalid FQDN", is_error=True)
         return {"error": "Invalid FQDN"}, 400
@@ -318,15 +368,15 @@ def perform_update(
             "Request from %s attempted update but backend not configured for updates",
             request.remote_addr,
         )
-        send_ntfy("Backend Not Configured", fqdn, is_error=True)
+        send_ntfy("Backend Not Configured", safe_fqdn, is_error=True)
         return {"error": "backend not configured for updates"}, 500
     if fqdn.lower() not in REGISTERED_FQDNS:
         app.logger.error(
             "Request from %s disallowed fqdn: %s",
             request.remote_addr,
-            fqdn,
+            safe_fqdn,
         )
-        send_ntfy("FQDN Not Allowed", fqdn, is_error=True)
+        send_ntfy("FQDN Not Allowed", safe_fqdn, is_error=True)
         return {"error": "FQDN not allowed"}, 403
 
     zones = get_zones()
@@ -343,18 +393,16 @@ def perform_update(
 
     if not zone_id:
         app.logger.error(
-            "Zone not found for %s from %s", fqdn, request.remote_addr
+            "Zone not found for %s from %s", safe_fqdn, request.remote_addr
         )
-        send_ntfy("Zone Not Found", f"No matching zone for {fqdn}", is_error=True)
+        send_ntfy("Zone Not Found", f"No matching zone for {safe_fqdn}", is_error=True)
         return {"error": "Zone not found"}, 404
-
-
 
     if subdomain == "":
         app.logger.error(
             "Request from %s missing subdomain for %s",
             request.remote_addr,
-            fqdn,
+            safe_fqdn,
         )
         send_ntfy("Param Error", "Missing subdomain", is_error=True)
         return {"error": "Missing subdomain"}, 400
@@ -362,13 +410,14 @@ def perform_update(
     # Check request cache before hitting the Hetzner API
     cache_key = (fqdn.lower(), record_type)
     now = time.time()
-    cached = REQUEST_CACHE.get(cache_key)
+    with _REQUEST_CACHE_LOCK:
+        cached = REQUEST_CACHE.get(cache_key)
     if cached and now < cached.get("expires", 0) and cached.get("ip") == ip:
         if DEBUG_LOGGING:
             app.logger.info(
-                "No change for %s from %s (cache)", fqdn, request.remote_addr
+                "No change for %s from %s (cache)", safe_fqdn, request.remote_addr
             )
-        send_ntfy("DynDNS Success", f"No change for {fqdn} -> {ip}")
+        send_ntfy("DynDNS Success", f"No change for {safe_fqdn} -> {ip}")
         return {"status": "unchanged", "ip": ip}, 200
 
     try:
@@ -379,14 +428,14 @@ def perform_update(
         )
     except requests.RequestException as exc:
         app.logger.exception(
-            "Records fetch exception for %s from %s", fqdn, request.remote_addr
+            "Records fetch exception for %s from %s", safe_fqdn, request.remote_addr
         )
         send_ntfy("Records Fetch Error", str(exc), is_error=True)
         return {"error": "Failed to fetch records"}, 500
     if records_resp.status_code != 200:
         app.logger.error(
             "Records fetch failed for %s from %s: %s",
-            fqdn,
+            safe_fqdn,
             request.remote_addr,
             records_resp.text,
         )
@@ -410,7 +459,7 @@ def perform_update(
     if record_found and not record_id:
         app.logger.error(
             "Record id missing for %s (%s) from %s",
-            fqdn,
+            safe_fqdn,
             record_type,
             request.remote_addr,
         )
@@ -418,9 +467,10 @@ def perform_update(
         return {"error": "Failed to fetch records"}, 500
 
     if record_id and skip_no_change and ip in current_values:
-        app.logger.info("No change for %s from %s", fqdn, request.remote_addr)
-        send_ntfy("DynDNS Success", f"No change for {fqdn} -> {ip}")
-        REQUEST_CACHE[cache_key] = {"ip": ip, "expires": now + REQUEST_CACHE_TTL}
+        app.logger.info("No change for %s from %s", safe_fqdn, request.remote_addr)
+        send_ntfy("DynDNS Success", f"No change for {safe_fqdn} -> {ip}")
+        with _REQUEST_CACHE_LOCK:
+            REQUEST_CACHE[cache_key] = {"ip": ip, "expires": now + REQUEST_CACHE_TTL}
         return {"status": "unchanged", "ip": ip}, 200
 
     payload = {
@@ -438,7 +488,7 @@ def perform_update(
         except requests.RequestException as exc:
             app.logger.exception(
                 "Update record exception for %s from %s",
-                fqdn,
+                safe_fqdn,
                 request.remote_addr,
             )
             send_ntfy("Update Record Error", str(exc), is_error=True)
@@ -462,7 +512,7 @@ def perform_update(
         except requests.RequestException as exc:
             app.logger.exception(
                 "Create record exception for %s from %s",
-                fqdn,
+                safe_fqdn,
                 request.remote_addr,
             )
             send_ntfy("Create Record Error", str(exc), is_error=True)
@@ -474,20 +524,21 @@ def perform_update(
             "%s request from %s for %s -> %s",
             action.lower(),
             request.remote_addr,
-            fqdn,
+            safe_fqdn,
             ip,
         )
         send_ntfy(
             "DynDNS Success",
-            f"{action} {record_type} record for {fqdn} -> {ip}",
+            f"{action} {record_type} record for {safe_fqdn} -> {ip}",
         )
-        REQUEST_CACHE[cache_key] = {"ip": ip, "expires": now + REQUEST_CACHE_TTL}
+        with _REQUEST_CACHE_LOCK:
+            REQUEST_CACHE[cache_key] = {"ip": ip, "expires": now + REQUEST_CACHE_TTL}
         return {"status": action.lower(), "ip": ip}, 200
     else:
         app.logger.error(
             "Failed to %s record for %s from %s: %s",
             action.lower(),
-            fqdn,
+            safe_fqdn,
             request.remote_addr,
             resp.text,
         )
@@ -506,6 +557,8 @@ def update():
         headers = dict(request.headers)
         if "X-Pre-Shared-Key" in headers:
             headers["X-Pre-Shared-Key"] = "[REDACTED]"
+        if "Authorization" in headers:
+            headers["Authorization"] = "[REDACTED]"
         app.logger.debug("Request headers: %s", headers)
         app.logger.debug("Remote address: %s", request.remote_addr)
         if "X-Real-Ip" in request.headers:
@@ -522,14 +575,15 @@ def update():
 
     auth_ok = False
     expected_key = PRE_SHARED_KEYS.get(url.lower())
-    if expected_key and request.headers.get("X-Pre-Shared-Key") == expected_key:
+    provided_key = request.headers.get("X-Pre-Shared-Key", "")
+    if expected_key and hmac.compare_digest(provided_key, expected_key):
         auth_ok = True
     if not auth_ok and BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD:
         auth = request.authorization
         if (
             auth
-            and auth.username == BASIC_AUTH_USERNAME
-            and auth.password == BASIC_AUTH_PASSWORD
+            and hmac.compare_digest(auth.username or "", BASIC_AUTH_USERNAME)
+            and hmac.compare_digest(auth.password or "", BASIC_AUTH_PASSWORD)
         ):
             auth_ok = True
     if not auth_ok:
@@ -602,10 +656,19 @@ def nic_update():
     expected_user = hostname.split(".")[0]
     expected_pw = PRE_SHARED_KEYS.get(hostname.lower())
     auth_ok = False
-    if user == expected_user and pw == expected_pw:
+    if (
+        user
+        and expected_pw
+        and hmac.compare_digest(user, expected_user)
+        and hmac.compare_digest(pw or "", expected_pw)
+    ):
         auth_ok = True
     elif BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD:
-        if user == BASIC_AUTH_USERNAME and pw == BASIC_AUTH_PASSWORD:
+        if (
+            user
+            and hmac.compare_digest(user, BASIC_AUTH_USERNAME)
+            and hmac.compare_digest(pw or "", BASIC_AUTH_PASSWORD)
+        ):
             auth_ok = True
     if not auth_ok:
         return "badauth", 401

@@ -1,4 +1,4 @@
-FROM python:3.11.9-alpine
+FROM python:3.11-alpine
 WORKDIR /client
 COPY requirements.txt ./
 RUN apk add --no-cache ca-certificates \
