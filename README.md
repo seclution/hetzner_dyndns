@@ -60,6 +60,13 @@ credentials can be intercepted and used to take over your DNS records. The
 sample compose files keep `http://` URLs because a reverse proxy is expected in
 front of the containers.
 
+The backend enforces a **1 KB request body limit** to prevent memory exhaustion
+from oversized payloads. It also sets security response headers
+(`X-Content-Type-Options`, `X-Frame-Options`, `Content-Security-Policy`) on
+every response and uses constant-time comparisons for all credential checks to
+prevent timing side-channel attacks. Pre-shared key files are written atomically
+to avoid partial reads.
+
 ---
 
 This project provides a lightweight REST API for updating Hetzner DNS A/AAAA records.
@@ -108,7 +115,8 @@ The backend authenticates requests using per-host pre-shared keys stored in
 `/pre-shared-key` (see `backend/docker-compose.yml`). The hostnames are
 configured via the `REGISTERED_FQDNS` environment variable. On first start
 the service generates a random key for each hostname and writes the mapping
-to the file. Use the matching key from this file for every client.
+to the file atomically. Use the matching key from this file for every client.
+All credential comparisons use `hmac.compare_digest` to prevent timing attacks.
 
 The backend keeps track of the last successful update for each configured
 hostname. A background task periodically checks these timestamps and if a host
@@ -224,6 +232,10 @@ Example URLs:
 - **Fritz!Box** – `https://host:secret@your-backend.example.com/nic/update?hostname=host.example.com`
 - **Speedport** – `https://your-backend.example.com/nic/update?hostname=host.example.com&user=host&pass=secret`
 - **Vodafone Station** – `https://host:secret@your-backend.example.com/nic/update?hostname=host.example.com&myip=%IP%`
+
+Prefer HTTP Basic Auth (`user:pass@host`) over query parameters (`pass=...`)
+where your router supports it, as query parameters may appear in reverse proxy
+access logs and browser history.
 
 ## Docker Compose
 
